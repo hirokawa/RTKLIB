@@ -848,7 +848,7 @@ void __fastcall TMainWindow::ConvertFile(void)
 	int i,format,sat;
 	char file[1024]="",*ofile[9],ofile_[9][1024]={""},msg[256],*p;
 	char buff[256],tstr[32];
-	int RNXVER[]={210,211,212,300,301,302,303,304};
+	int RNXVER[]={210,211,212,300,301,302,303,304,305,400,401,402};
 	FILE *fp;
 	
 	for (i=0;i<9;i++) ofile[i]=ofile_[i];
