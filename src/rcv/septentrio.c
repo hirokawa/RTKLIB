@@ -58,6 +58,8 @@
 #define SBF_QZSRAWL1S   4228    /* SBF QZSS L1S subframe */
 #define SBF_BDSRAWB2B   4242    /* SBF BDS B2B subframe */
 #define SBF_QZSRAWL5S   4246    /* SBF QZSS L5S subframe */
+#define SBF_QZSRAWL6D   4270    /* SBF QZSS L6D subframe */
+#define SBF_QZSRAWL6E   4271    /* SBF QZSS L6E subframe */
 #define SBF_PVTGEODETIC 4007    /* SBF GNSS Geodetic position/velocity/time */
 #define SBF_LBANDTRACKERSTATUS 4201    /* SBF L-band signal tracking status */
 
@@ -837,6 +839,8 @@ static int decode_sbf(raw_t *raw)
 		case SBF_GEORAWL5  : return 0;
 		case SBF_QZSRAWL1S : return 0;
 		case SBF_QZSRAWL5S : return 0;
+		case SBF_QZSRAWL6D : return 0;
+		case SBF_QZSRAWL6E : return 0;
 		case SBF_BDSRAWB2B : return 0;
 		case SBF_GALRAWCNAV: return 0;
 		case SBF_PVTGEODETIC : return 0;

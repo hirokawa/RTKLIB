@@ -15,6 +15,9 @@
 *         including Protocol Specification V15.00-18.00, January, 2016
 *     [5] ublox-AG, UBX-18010854-R08, u-blox ZED-F9P Interface Description,
 *         May, 2020
+*     [6] ublox-AG, 304424225-19967-R03, u-blox ZED-X20 HPG 2.02
+	      High precision GNSS receiver Interface Description,
+*         Nov 13, 2025
 *
 * version : $Revision: 1.2 $ $Date: 2008/07/14 00:05:05 $
 * history : 2007/10/08 1.0  new
@@ -162,7 +165,8 @@ static int ubx_sys(int gnssid)
         case 3: return SYS_CMP;
         case 5: return SYS_QZS;
         case 6: return SYS_GLO;
-    }
+        case 7: return SYS_IRN;
+	}
     return 0;
 }
 /* UBX SigId to signal (ref [5] 1.5.4) ---------------------------------------*/
@@ -171,8 +175,10 @@ static int ubx_sig(int sys, int sigid)
     if (sys==SYS_GPS) {
         if (sigid==0) return CODE_L1C; /* L1C/A */
         if (sigid==3) return CODE_L2L; /* L2CL */
-        if (sigid==4) return CODE_L2S; /* L2CM */
-    }
+		if (sigid==4) return CODE_L2S; /* L2CM */
+		if (sigid==6) return CODE_L5I; /* L5I */
+		if (sigid==7) return CODE_L5Q; /* L5Q */
+	}
     else if (sys==SYS_GLO) {
         if (sigid==0) return CODE_L1C; /* G1C/A (GLO L1 OF) */
         if (sigid==2) return CODE_L2C; /* G2C/A (GLO L2 OF) */
@@ -180,24 +186,41 @@ static int ubx_sig(int sys, int sigid)
     else if (sys==SYS_GAL) {
         if (sigid==0) return CODE_L1C; /* E1C */
         if (sigid==1) return CODE_L1B; /* E1B */
-        if (sigid==5) return CODE_L7I; /* E5bI */
-        if (sigid==6) return CODE_L7Q; /* E5bQ */
+		if (sigid==3) return CODE_L5I; /* E5aI */
+		if (sigid==4) return CODE_L5Q; /* E5aQ */
+		if (sigid==5) return CODE_L7I; /* E5bI */
+		if (sigid==6) return CODE_L7Q; /* E5bQ */
+		if (sigid==8) return CODE_L6B; /* E6B */
+		if (sigid==9) return CODE_L6C; /* E6C */
+		if (sigid==10) return CODE_L6A; /* E6A */
     }
     else if (sys==SYS_QZS) {
         if (sigid==0) return CODE_L1C; /* L1C/A */
         if (sigid==1) return CODE_L1Z; /* L1S */
         if (sigid==4) return CODE_L2S; /* L2CM */
-        if (sigid==5) return CODE_L2L; /* L2CL */
+		if (sigid==5) return CODE_L2L; /* L2CL */
+		if (sigid==8) return CODE_L5I; /* L5I */
+		if (sigid==9) return CODE_L5Q; /* L5Q */
+		if (sigid==12) return CODE_L1E; /* L1C/B */
     }
     else if (sys==SYS_CMP) {
         if (sigid==0) return CODE_L2I; /* B1I D1 */
         if (sigid==1) return CODE_L2I; /* B1I D2 */
         if (sigid==2) return CODE_L7I; /* B2I D1 */
         if (sigid==3) return CODE_L7I; /* B2I D2 */
-    }
+		if (sigid==4) return CODE_L3I; /* B3I D1 */
+		if (sigid==10) return CODE_L3I; /* B3I D2 */
+		if (sigid==5) return CODE_L1P; /* B1Cp */
+		if (sigid==6) return CODE_L1D; /* B1Cd */
+		if (sigid==7) return CODE_L5P; /* B2aP */
+		if (sigid==8) return CODE_L5D; /* B2aD */
+	}
     else if (sys==SYS_SBS) {
         if (sigid==0) return CODE_L1C; /* L1C/A */
-    }
+	}
+	else if (sys==SYS_IRN) {
+        if (sigid==0) return CODE_L5A; /* L5A SPS */
+	}
     return CODE_NONE;
 }
 /* signal index in obs data --------------------------------------------------*/
@@ -214,7 +237,8 @@ static int sig_idx(int sys, uint8_t code)
     }
     else if (sys==SYS_QZS) {
         if (code==CODE_L2S) return (nex<1)?-1:NFREQ;   /* L2CM */
-        if (code==CODE_L1Z) return (nex<2)?-1:NFREQ+1; /* L1S */
+		if (code==CODE_L1E) return (nex<2)?-1:NFREQ+1; /* L1C/B */
+		if (code==CODE_L1Z) return (nex<3)?-1:NFREQ+2; /* L1S */
     }
     return (idx<NFREQ)?idx:-1;
 }

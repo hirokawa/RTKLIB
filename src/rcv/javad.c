@@ -110,8 +110,8 @@ static int sig2idx(int sys, char sig, int *code)
         {CODE_L1C,0       ,0       ,0       ,CODE_L5X,0       }, /* SBS */
         {CODE_L1X,CODE_L8X,CODE_L7X,CODE_L6X,CODE_L5X,0       }, /* GAL */
         {CODE_L1C,CODE_L1P,CODE_L2P,CODE_L2C,CODE_L3X,0       }, /* GLO */
-        {CODE_L2I,0       ,CODE_L7I,CODE_L6I,CODE_L5X,CODE_L1X}, /* BDS */
-        {0       ,0       ,0       ,0       ,CODE_L5X,0       }  /* IRN */
+        {CODE_L2I,CODE_L8X,CODE_L7X,CODE_L6I,CODE_L5X,CODE_L1X}, /* BDS */
+        {CODE_L9A,0       ,0       ,0       ,CODE_L5X,CODE_L1A}  /* IRN */
     };
     int i,j,idx;
     
@@ -162,7 +162,8 @@ static int checkpri(int sys, int code, const char *opt, int idx)
         if (strstr(opt,"-JL1Z")&&idx==0) return code==CODE_L1Z?0:-1;
         if (strstr(opt,"-JL1X")&&idx==0) return code==CODE_L1X?0:-1;
         if (code==CODE_L1Z) return nex<1?-1:NFREQ;
-        if (code==CODE_L1X) return nex<2?-1:NFREQ+1;
+        if (code==CODE_L1E) return nex<2?-1:NFREQ+1;
+        if (code==CODE_L1X) return nex<3?-1:NFREQ+2;
     }
     return idx;
 }
@@ -348,16 +349,13 @@ static int decode_SI(raw_t *raw)
     for (i=0;i<raw->obuf.n&&i<MAXOBS;i++) {
         usi=U1(p); p+=1;
         
-        if      (usi<=  0) sat=0;                      /* ref [5] table 3-6 */
+        if      (usi<=  0) sat=0;                      /* ref [5] table 3-7 */
         else if (usi<= 37) sat=satno(SYS_GPS,usi);     /*   1- 37: GPS */
         else if (usi<= 70) sat=255;                    /*  38- 70: GLONASS */
         else if (usi<=119) sat=satno(SYS_GAL,usi-70);  /*  71-119: GALILEO */
-        else if (usi<=142) sat=satno(SYS_SBS,usi);     /* 120-142: SBAS */
-        else if (usi<=192) sat=0;
-        else if (usi<=197) sat=satno(SYS_QZS,usi);     /* 193-197: QZSS */
-        else if (usi<=210) sat=0;
-        else if (usi<=240) sat=satno(SYS_CMP,usi-210); /* 211-240: BeiDou */
-        else if (usi<=247) sat=satno(SYS_IRN,usi-240); /* 241-247: IRNSS */
+        else if (usi<=192) sat=satno(SYS_SBS,usi);     /* 120-192: SBAS */
+        else if (usi<=210) sat=satno(SYS_QZS,usi);     /* 193-210: QZSS */
+        else if (usi<=254) sat=satno(SYS_CMP,usi-210); /* 211-254: BeiDou */
         else               sat=0;
         
         raw->obuf.data[i].time=raw->time;

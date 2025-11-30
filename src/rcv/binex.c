@@ -870,12 +870,12 @@ static uint8_t *decode_bnx_7f_05_obs(raw_t *raw, uint8_t *buff, int sat,
         /* 20-23: extension for BD990 F/W 5.48 */
     };
     const uint8_t codes_qzs[32]={
-        CODE_L1C ,CODE_L1C ,CODE_L1S ,CODE_L1L ,CODE_L1X ,CODE_NONE, /*  0- 5 */
+        CODE_L1C ,CODE_L1C ,CODE_L1S ,CODE_L1L ,CODE_L1X ,CODE_L1E , /*  0- 5 */
         CODE_NONE,CODE_L2X ,CODE_L2S ,CODE_L2L ,CODE_L2X ,CODE_NONE, /*  6-11 */
         CODE_NONE,CODE_L5X ,CODE_L5I ,CODE_L5Q ,CODE_L5X ,CODE_NONE, /* 12-17 */
-        CODE_NONE,CODE_L6X ,CODE_L6S ,CODE_L6L ,CODE_L6X ,CODE_NONE, /* 18-23 */
-        CODE_NONE,CODE_NONE,CODE_NONE,CODE_NONE,CODE_NONE,CODE_NONE, /* 24-29 */
-        CODE_L1Z                                                     /* 30-30 */
+        CODE_NONE,CODE_L6X ,CODE_L6S ,CODE_L6L ,CODE_L6X ,CODE_L6E , /* 18-23 */
+        CODE_L6Z ,CODE_NONE,CODE_NONE,CODE_NONE,CODE_NONE,CODE_NONE, /* 24-29 */
+        CODE_L1Z ,CODE_L1B                                           /* 30-31 */
     };
     const uint8_t codes_irn[32]={
         CODE_L5X ,CODE_L5A ,CODE_L5B ,CODE_L5C ,CODE_L5X ,CODE_L9X , /*  0- 5 */
