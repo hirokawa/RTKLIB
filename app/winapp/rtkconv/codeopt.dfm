@@ -4,17 +4,15 @@ object CodeOptDialog: TCodeOptDialog
   BorderStyle = bsDialog
   Caption = 'Signal Mask'
   ClientHeight = 402
-  ClientWidth = 400
+  ClientWidth = 401
   Color = clWhite
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  OldCreateOrder = False
   Position = poMainFormCenter
   OnShow = FormShow
-  PixelsPerInch = 96
   TextHeight = 13
   object GroupBox5: TGroupBox
     Left = 4
@@ -682,6 +680,14 @@ object CodeOptDialog: TCodeOptDialog
       Height = 16
       Caption = '6Z'
       TabOrder = 18
+    end
+    object J09: TCheckBox
+      Left = 352
+      Top = 32
+      Width = 34
+      Height = 16
+      Caption = '1E'
+      TabOrder = 19
     end
   end
   object BtnSetAll: TButton

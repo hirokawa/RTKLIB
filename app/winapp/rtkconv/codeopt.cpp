@@ -76,6 +76,7 @@ void __fastcall TCodeOptDialog::FormShow(TObject *Sender)
 	J01->Checked=mask[3][ 0]=='1';
 	J07->Checked=mask[3][ 6]=='1';
 	J08->Checked=mask[3][ 7]=='1';
+	J09->Checked=mask[3][ 8]=='1';
 	J13->Checked=mask[3][12]=='1';
 	J12->Checked=mask[3][11]=='1';
 	J16->Checked=mask[3][15]=='1';
@@ -193,6 +194,7 @@ void __fastcall TCodeOptDialog::BtnOkClick(TObject *Sender)
 	if (J01->Checked) mask[3][ 0]='1';
 	if (J07->Checked) mask[3][ 6]='1';
 	if (J08->Checked) mask[3][ 7]='1';
+	if (J09->Checked) mask[3][ 8]='1';
 	if (J13->Checked) mask[3][12]='1';
 	if (J12->Checked) mask[3][11]='1';
 	if (J16->Checked) mask[3][15]='1';
@@ -308,6 +310,7 @@ void __fastcall TCodeOptDialog::BtnSetAllClick(TObject *Sender)
 	J01->Checked=set;
 	J07->Checked=set;
 	J08->Checked=set;
+	J09->Checked=set;
 	J13->Checked=set;
 	J12->Checked=set;
 	J16->Checked=set;
@@ -421,6 +424,7 @@ void __fastcall TCodeOptDialog::UpdateEnable(void)
 	J01->Enabled=(NavSys&SYS_QZS)&&(FreqType&FREQTYPE_L1);
 	J07->Enabled=(NavSys&SYS_QZS)&&(FreqType&FREQTYPE_L1);
 	J08->Enabled=(NavSys&SYS_QZS)&&(FreqType&FREQTYPE_L1);
+ 	J09->Enabled=(NavSys&SYS_QZS)&&(FreqType&FREQTYPE_L1);
 	J13->Enabled=(NavSys&SYS_QZS)&&(FreqType&FREQTYPE_L1);
 	J12->Enabled=(NavSys&SYS_QZS)&&(FreqType&FREQTYPE_L1);
 	J16->Enabled=(NavSys&SYS_QZS)&&(FreqType&FREQTYPE_L2);

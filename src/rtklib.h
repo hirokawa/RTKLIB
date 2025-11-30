@@ -132,7 +132,7 @@ extern "C" {
 #define NFREQGLO    2                   /* number of carrier frequencies of GLONASS */
 
 #ifndef NEXOBS
-#define NEXOBS      0                   /* number of extended obs codes */
+#define NEXOBS      3                   /* number of extended obs codes */
 #endif
 
 #define SNR_UNIT    0.001               /* SNR unit (dBHz) */
@@ -269,7 +269,7 @@ extern "C" {
 #define MAXRCVCMD   4096                /* max length of receiver commands */
 
 #define RNX2VER     2.10                /* RINEX ver.2 default output version */
-#define RNX3VER     3.00                /* RINEX ver.3 default output version */
+#define RNX3VER     3.04                /* RINEX ver.3 default output version */
 
 #define OBSTYPE_PR  0x01                /* observation type: pseudorange */
 #define OBSTYPE_CP  0x02                /* observation type: carrier-phase */
@@ -293,7 +293,7 @@ extern "C" {
 #define CODE_L1N    6                   /* obs code: L1codeless,B1codeless (GPS,BDS) */
 #define CODE_L1S    7                   /* obs code: L1C(D)     (GPS,QZS) */
 #define CODE_L1L    8                   /* obs code: L1C(P)     (GPS,QZS) */
-#define CODE_L1E    9                   /* (not used) */
+#define CODE_L1E    9                   /* obs code: L1C/B      (QZS) */
 #define CODE_L1A    10                  /* obs code: E1A,B1A    (GAL,BDS) */
 #define CODE_L1B    11                  /* obs code: E1B        (GAL) */
 #define CODE_L1X    12                  /* obs code: E1B+C,L1C(D+P),B1D+P (GAL,QZS,BDS) */

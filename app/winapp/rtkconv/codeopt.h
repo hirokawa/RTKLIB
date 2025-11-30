@@ -59,6 +59,7 @@ __published:
 	TCheckBox *J01;
 	TCheckBox *J07;
 	TCheckBox *J08;
+	TCheckBox *J09;
 	TCheckBox *J13;
 	TCheckBox *J12;
 	TCheckBox *J16;

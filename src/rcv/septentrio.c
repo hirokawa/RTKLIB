@@ -41,18 +41,25 @@
 
 #define SBF_SYNC1       0x24    /* SBF block header 1 */
 #define SBF_SYNC2       0x40    /* SBF block header 2 */
-#define SBF_MAXSIG      36      /* SBF max signal number */
+#define SBF_MAXSIG      40      /* SBF max signal number */
 
 #define SBF_MEASEPOCH   4027    /* SBF GNSS measurements */
 #define SBF_MEASEXTRA   4000    /* SBF GNSS measurements extra info */
 #define SBF_GPSRAWCA    4017    /* SBF GPS C/A subframe */
+#define SBF_GEORAWL5    4021    /* SBF SBAS L5 navitation frame */
 #define SBF_GLORAWCA    4026    /* SBF GLONASS L1CA or L2CA navigation string */
 #define SBF_GALRAWFNAV  4022    /* SBF Galileo F/NAV navigation page */
 #define SBF_GALRAWINAV  4023    /* SBF Galileo I/NAV navigation page */
+#define SBF_GALRAWCNAV  4024    /* SBF Galileo C/NAV navigation page */
 #define SBF_GEORAWL1    4020    /* SBF SBAS L1 navigation frame */
 #define SBF_BDSRAW      4047    /* SBF BDS navigation page */
 #define SBF_QZSRAWL1CA  4066    /* SBF QZSS C/A subframe */
 #define SBF_NAVICRAW    4093    /* SBF NavIC/IRNSS subframe */
+#define SBF_QZSRAWL1S   4228    /* SBF QZSS L1S subframe */
+#define SBF_BDSRAWB2B   4242    /* SBF BDS B2B subframe */
+#define SBF_QZSRAWL5S   4246    /* SBF QZSS L5S subframe */
+#define SBF_PVTGEODETIC 4007    /* SBF GNSS Geodetic position/velocity/time */
+#define SBF_LBANDTRACKERSTATUS 4201    /* SBF L-band signal tracking status */
 
 /* get fields (little-endian) ------------------------------------------------*/
 #define U1(p) (*((uint8_t *)(p)))
@@ -73,8 +80,7 @@ static int svid2sat(int svid)
     if (svid<=119) return 0;
     if (svid<=140) return satno(SYS_SBS,svid);
     if (svid<=180) return satno(SYS_CMP,svid-140);
-    if (svid<=187) return satno(SYS_QZS,svid-180+192);
-    if (svid<=190) return 0;
+	if (svid<=190) return satno(SYS_QZS,svid-180+192);
     if (svid<=197) return satno(SYS_IRN,svid-190);
     if (svid<=215) return satno(SYS_SBS,svid-57);
     if (svid<=222) return satno(SYS_IRN,svid-208);
@@ -119,7 +125,10 @@ static uint8_t sig_tbl[SBF_MAXSIG+1][2]={ /* system, obs-code */
     {SYS_QZS, CODE_L1Z}, /* 33: QZS L1S */
     {SYS_CMP, CODE_L7D}, /* 34: BDS B2b */
     {      0,        0}, /* 35: reserved */
-    {SYS_IRN, CODE_L9A}  /* 36: IRN S */
+	{      0,        0}, /* 36: reserved */
+	{SYS_IRN, CODE_L1P}, /* 37: IRN L1 */
+	{SYS_QZS, CODE_L1E}, /* 38: QZS L1CB */
+	{SYS_QZS, CODE_L5P}  /* 39: QZS L5S */
 };
 /* signal number to freq-index and code --------------------------------------*/
 static int sig2idx(int sat, int sig, const char *opt, uint8_t *code)
@@ -149,8 +158,9 @@ static int sig2idx(int sat, int sig, const char *opt, uint8_t *code)
         if (strstr(opt,"-JL1L")&&idx==0) return (*code==CODE_L1L)?0:-1;
         if (strstr(opt,"-JL1Z")&&idx==0) return (*code==CODE_L1Z)?0:-1;
         if (*code==CODE_L1L) return (nex<1)?-1:NFREQ;
-        if (*code==CODE_L1Z) return (nex<2)?-1:NFREQ+1;
-    }
+		if (*code==CODE_L1E) return (nex<2)?-1:NFREQ+1;
+		if (*code==CODE_L1Z) return (nex<3)?-1:NFREQ+2;
+	}
     else if (sys==SYS_CMP) {
         if (strstr(opt,"-CL1P")&&idx==0) return (*code==CODE_L1P)?0:-1;
         if (*code==CODE_L1P) return (nex<1)?-1:NFREQ;
@@ -178,7 +188,7 @@ static int decode_measepoch(raw_t *raw)
 {
     uint8_t *p=raw->buff+14,code;
     double P1,P2,L1,L2,D1,D2,S1,S2,freq1,freq2;
-    int i,j,idx,n,n1,n2,len1,len2,sig,ant,svid,info,sat,sys,lock,fcn,LLI;
+    int i,j,idx,n,n1,n2,len1,len2,sig,ant,svid,info,sat,sys,prn,lock,fcn,LLI;
     int ant_sel=0; /* antenna selection (0:main) */
     
     if      (strstr(raw->opt,"-AUX1")) ant_sel=1;
@@ -206,7 +216,7 @@ static int decode_measepoch(raw_t *raw)
         info=U1(p+18);
         n2  =U1(p+19);
         fcn =0;
-        if (sig==31) sig+=(info>>3)*32;
+        if (sig==31) sig=(info>>3)+32;
         else if (sig>=8&&sig<=11) fcn=(info>>3)-8;
         
         if (ant!=ant_sel) {
@@ -218,17 +228,17 @@ static int decode_measepoch(raw_t *raw)
             trace(3,"sbf measepoch svid error: svid=%d\n",svid);
             p+=len1+len2*n2;
             continue;
-        }
-        if ((idx=sig2idx(sat,sig,raw->opt,&code))<0) {
-            trace(2,"sbf measepoch sig error: sat=%d sig=%d\n",sat,sig);
-            p+=len1+len2*n2;
-            continue;
-        }
-        init_obsd(raw->time,sat,raw->obs.data+n);
-        P1=D1=0.0;
-        sys=satsys(sat,NULL);
-        freq1=code2freq(sys,code,fcn);
-        
+		}
+		sys=satsys(sat,&prn);
+		if ((idx=sig2idx(sat,sig,raw->opt,&code))<0) {
+			trace(2,"sbf measepoch sig error: sys=%d prn=%d sig=%d\n",sys,prn,sig);
+			p+=len1+len2*n2;
+			continue;
+		}
+		init_obsd(raw->time,sat,raw->obs.data+n);
+		P1=D1=0.0;
+		freq1=code2freq(sys,code,fcn);
+
         if ((U1(p+3)&0x1f)!=0||U4(p+4)!=0) {
             P1=(U1(p+3)&0x0f)*4294967.296+U4(p+4)*0.001;
             raw->obs.data[n].P[idx]=P1;
@@ -255,14 +265,17 @@ static int decode_measepoch(raw_t *raw)
             sig =U1(p)&0x1f;
             ant =U1(p)>>5;
             info=U1(p+5);
-            if (sig==31) sig+=(info>>3)*32;
+            if (sig==31) sig=(info>>3)+32;
             
             if (ant!=ant_sel) {
                 trace(3,"sbf measepoch ant error: sat=%d ant=%d\n",sat,ant);
                 continue;
             }
-            if ((idx=sig2idx(sat,sig,raw->opt,&code))<0) {
-                trace(3,"sbf measepoch sig error: sat=%d sig=%d\n",sat,sig);
+			if ((idx=sig2idx(sat,sig,raw->opt,&code))<0) {
+                int prn;
+				sys = satsys(sat, &prn);
+				trace(3,"sbf measepoch sig error: sys=%d prn=%d sig=%d\n",
+						sys,prn,sig);
                 continue;
             }
             P2=0.0;
@@ -819,9 +832,16 @@ static int decode_sbf(raw_t *raw)
         case SBF_GALRAWINAV: return decode_galrawinav(raw);
         case SBF_GEORAWL1  : return decode_georawl1  (raw);
         case SBF_BDSRAW    : return decode_bdsraw    (raw);
-        case SBF_QZSRAWL1CA: return decode_qzsrawl1ca(raw);
-        case SBF_NAVICRAW  : return decode_navicraw  (raw);
-    }
+		case SBF_QZSRAWL1CA: return decode_qzsrawl1ca(raw);
+		case SBF_NAVICRAW  : return decode_navicraw  (raw);
+		case SBF_GEORAWL5  : return 0;
+		case SBF_QZSRAWL1S : return 0;
+		case SBF_QZSRAWL5S : return 0;
+		case SBF_BDSRAWB2B : return 0;
+		case SBF_GALRAWCNAV: return 0;
+		case SBF_PVTGEODETIC : return 0;
+		case SBF_LBANDTRACKERSTATUS : return 0;
+	}
     trace(3,"sbf unsupported message: type=%d\n",type);
     return 0;
 }
