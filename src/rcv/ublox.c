@@ -793,7 +793,7 @@ static int decode_enav(raw_t *raw, int sat, int off)
         trace(2,"ubx rxmsfrbx enav length error: sat=%d len=%d\n",sat,raw->len);
         return -1;
     }
-    if (raw->len<44+off) return 0; /* E5b I/NAV */
+    if (raw->len<40+off) return 0; /* E5b I/NAV */
     
     for (i=0;i<8;i++,p+=4) {
         setbitu(buff,32*i,32,U4(p));

@@ -1189,7 +1189,7 @@ void __fastcall TPlot::UpdateObs(int nobs)
     
     for (int i=0,j=0;i<Obs.n;i=j) {
         gtime_t time=Obs.data[i].time;
-        double pos[3],azel[2];
+        double pos[3],azel[2*MAXOBS];
         int svh;
         
         for (j=i;j<Obs.n;j++) {

@@ -1088,8 +1088,9 @@ static int decode_bnx_7f(raw_t *raw, uint8_t *buff, int len)
     srec=U1(p); p+=1; /* subrecord ID */
     min =U4(p); p+=4;
     msec=U2(p); p+=2;
-    raw->time=timeadd(epoch2time(gpst0),min*60.0+msec*0.001);
-    
+    raw->time=timeadd(epoch2time(gpst0),min*60.0);
+	raw->time=timeadd(raw->time,msec*0.001);
+
     if (raw->outtype) {
         msg=raw->msgtype+strlen(raw->msgtype);
         sprintf(msg," subrec=%02X time%s",srec,time_str(raw->time,3));
