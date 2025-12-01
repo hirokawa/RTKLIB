@@ -11,10 +11,8 @@ object ConvOptDialog: TConvOptDialog
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  OldCreateOrder = False
   Position = poMainFormCenter
   OnShow = FormShow
-  PixelsPerInch = 96
   TextHeight = 13
   object Label3: TLabel
     Left = 153
@@ -480,7 +478,11 @@ object ConvOptDialog: TConvOptDialog
       '3.01'
       '3.02'
       '3.03'
-      '3.04')
+      '3.04'
+      '3.05'
+      '4.00'
+      '4.01'
+      '4.02')
   end
   object RnxFile: TCheckBox
     Left = 327

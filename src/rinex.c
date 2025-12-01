@@ -183,7 +183,7 @@ static const double ura_nominal[]={     /* URA nominal values */
     2.0,2.8,4.0,5.7,8.0,11.3,16.0,32.0,64.0,128.0,256.0,512.0,1024.0,
     2048.0,4096.0,8192.0
 };
-static const char 
+static char
     *navids_gps[]={"LNAV","CNAV","CNV2",NULL},
     *navids_gal[]={"FNAV","INAV",NULL},
     *navids_glo[]={"FDMA","L1OC","L3OC",NULL},
@@ -1423,22 +1423,22 @@ static int decode_seph(double ver, int sat, gtime_t toc, double *data,
 static int select_navid(int sys, const char *id, int *sz)
 {
     int j,*sz_=NULL,navid=-1;
-	const char *navids=NULL;
-	const int sz_t[7][5]={{31,35,39,0,0},{31,31,0,0,0},{17,35,35,0,0},
+	char **navids=NULL;
+	int sz_t[7][5]={{31,35,39,0,0},{31,31,0,0,0},{17,35,35,0,0},
 			{31,35,39,0,0},{31,31,39,39,35},{15,0,0,0,0},{31,35,0,0,0}};
 
     switch (sys) {
-		case SYS_GPS: navids=navids_gps; sz_=(int *)sz_t[0]; break;
-		case SYS_GAL: navids=navids_gal; sz_=(int *)sz_t[1]; break;
-		case SYS_GLO: navids=navids_glo; sz_=(int *)sz_t[2]; break;
-		case SYS_QZS: navids=navids_qzs; sz_=(int *)sz_t[3]; break;
-		case SYS_CMP: navids=navids_cmp; sz_=(int *)sz_t[4]; break;
-		case SYS_SBS: navids=navids_sbs; sz_=(int *)sz_t[5]; break;
-        case SYS_IRN: navids=navids_irn; sz_=(int *)sz_t[6]; break;
+		case SYS_GPS: navids=navids_gps; sz_=sz_t[0]; break;
+		case SYS_GAL: navids=navids_gal; sz_=sz_t[1]; break;
+		case SYS_GLO: navids=navids_glo; sz_=sz_t[2]; break;
+		case SYS_QZS: navids=navids_qzs; sz_=sz_t[3]; break;
+		case SYS_CMP: navids=navids_cmp; sz_=sz_t[4]; break;
+		case SYS_SBS: navids=navids_sbs; sz_=sz_t[5]; break;
+        case SYS_IRN: navids=navids_irn; sz_=sz_t[6]; break;
     }
     
     for (j=0;navids[j];j++) {
-        if (strstr(id,&navids[j])) break;
+        if (strstr(id,navids[j])) break;
     } 
     if (!navids[j]) {
         trace(2,"rinex nav unsupported ephemeris: %23.23s\n",id);
@@ -2676,18 +2676,18 @@ extern int outrnxnavh(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
     return fprintf(fp,"%60s%-20s\n","","END OF HEADER")!=EOF;
 }
 
-static int detect_navid(int sys, int code, const char *navids)
+static int detect_navid(int sys, int code, char ***navids)
 {
     int navid=0;
     
     switch (sys) {
-        case SYS_GPS: navids=navids_gps; break;
-        case SYS_GAL: navids=navids_gal; break;
-        case SYS_GLO: navids=navids_glo; break;
-        case SYS_QZS: navids=navids_qzs; break;
-        case SYS_CMP: navids=navids_cmp; break;
-        case SYS_SBS: navids=navids_sbs; break;
-        case SYS_IRN: navids=navids_irn; break;
+		case SYS_GPS: *navids=navids_gps; break;
+		case SYS_GAL: *navids=navids_gal; break;
+		case SYS_GLO: *navids=navids_glo; break;
+		case SYS_QZS: *navids=navids_qzs; break;
+		case SYS_CMP: *navids=navids_cmp; break;
+		case SYS_SBS: *navids=navids_sbs; break;
+        case SYS_IRN: *navids=navids_irn; break;
     }
 
     if (sys==SYS_CMP||sys==SYS_IRN||sys==SYS_GLO) {
@@ -2719,7 +2719,7 @@ extern int outrnxnavb(FILE *fp, const rnxopt_t *opt, const eph_t *eph)
     double ep[6],ttr,v1,v2;
     int week,sys,prn,navid=0;
 	char code[32],*sep;
-	const char *navids=NULL;
+	char **navids=NULL;
     
     trace(3,"outrnxnavb: sat=%2d\n",eph->sat);
     
@@ -2734,9 +2734,9 @@ extern int outrnxnavb(FILE *fp, const rnxopt_t *opt, const eph_t *eph)
     if (opt->rnxver>=400) {
         if (!sat2code(eph->sat,code)) return 0;
 
-        navid=detect_navid(sys, eph->code, navids);
+		navid=detect_navid(sys, eph->code, &navids);
 
-        fprintf(fp,"> %-3s %-3s %-4s\n","EPH", code, &navids[navid]);
+        fprintf(fp,"> %-3s %-3s %-4s\n","EPH", code, navids[navid]);
         fprintf(fp,"%-3s %04.0f %02.0f %02.0f %02.0f %02.0f %02.0f",code,ep[0],
                 ep[1],ep[2],ep[3],ep[4],ep[5]);
         sep="    ";        
@@ -3000,7 +3000,7 @@ extern int outrnxgnavb(FILE *fp, const rnxopt_t *opt, const geph_t *geph)
     gtime_t toe;
     double ep[6],tof;
     int prn,navid=0,sys=SYS_GLO;
-	char code[32],*sep,*navids=NULL;
+	char code[32],*sep,**navids=NULL;
 
     trace(3,"outrnxgnavb: sat=%2d\n",geph->sat);
     
@@ -3014,8 +3014,8 @@ extern int outrnxgnavb(FILE *fp, const rnxopt_t *opt, const geph_t *geph)
     
     if (opt->rnxver>=400) { /* ver.4 */
         if (!sat2code(geph->sat,code)) return 0;
-        navid=detect_navid(sys, geph->code, navids);
-        fprintf(fp,"> %-3s %-3s %-4s\n","EPH", code, &navids[navid]);
+        navid=detect_navid(sys, geph->code, &navids);
+        fprintf(fp,"> %-3s %-3s %-4s\n","EPH", code, navids[navid]);
         fprintf(fp,"%-3s %04.0f %02.0f %02.0f %02.0f %02.0f %02.0f",code,ep[0],
                 ep[1],ep[2],ep[3],ep[4],ep[5]);
         sep="    ";   
@@ -3107,7 +3107,7 @@ extern int outrnxhnavb(FILE *fp, const rnxopt_t *opt, const seph_t *seph)
     double ep[6];
     int prn,navid=0,sys=SYS_SBS;
 	char code[32],*sep;
-	const char *navids=NULL;
+	char **navids=NULL;
 
     trace(3,"outrnxhnavb: sat=%2d\n",seph->sat);
     
@@ -3117,8 +3117,8 @@ extern int outrnxhnavb(FILE *fp, const rnxopt_t *opt, const seph_t *seph)
     
     if (opt->rnxver>=400) { /* ver.4 */
 		if (!sat2code(seph->sat,code)) return 0;
-        navid=detect_navid(sys, 0, navids);
-		fprintf(fp,"> %-3s %-3s %-4s\n","EPH", code, &navids[navid]);
+        navid=detect_navid(sys, 0, &navids);
+		fprintf(fp,"> %-3s %-3s %-4s\n","EPH", code, navids[navid]);
         fprintf(fp,"%-3s %04.0f %02.0f %02.0f %02.0f %02.0f %02.0f",code,ep[0],
                 ep[1],ep[2],ep[3],ep[4],ep[5]);
         sep="    ";   

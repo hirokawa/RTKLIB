@@ -1035,7 +1035,7 @@ void __fastcall TMainWindow::LoadOpt(void)
 	AnsiString opt,mask=
         "11111111111111111111111111111111111111111111111111111111111111111111";
 	
-	RnxVer				=ini->ReadInteger("opt","rnxver",	   6);
+	RnxVer				=ini->ReadInteger("opt","rnxver",	  11);
 	RnxFile				=ini->ReadInteger("opt","rnxfile",	   0);
 	RnxCode				=ini->ReadString ("opt","rnxcode","0000");
 	RunBy				=ini->ReadString ("opt","runby",	  "");
