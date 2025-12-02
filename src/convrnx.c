@@ -92,17 +92,29 @@ typedef struct {                /* stream file type */
 static const int navsys[]={     /* system codes */
     SYS_GPS,SYS_GLO,SYS_GAL,SYS_QZS,SYS_SBS,SYS_CMP,SYS_IRN,0
 };
-static const char vercode[][MAXCODE]={ /* supported obs-type by RINEX version */
+static const char vercode3[][MAXCODE]={ /* supported obs-type by RINEX version */
   /* 0........1.........2.........3.........4.........5.........6........          */
   /* 11111111111112222222222555777666666688822663331155599991555677788444     CODE */
   /* CPWYMNSLEABXZCDSLXPWYMNIQXIQXABCXZSLIQXIQIQIQXIQABCABCXDDPZEDPZDPABX          */
     "00000000...0.0000000000000..........................................", /* GPS */
     "00...........0....0..........44.4..........222...................444", /* GLO */
     "0........0000..........0000000000...000.............................", /* GAL */
-    "2.....224..22..222.....222......2422....................4444........", /* QZS */
+    "2.....22..522..222.....222......2422....................4444........", /* QZS */
     "0......................000..........................................", /* SBS */
     ".4...4...4.4.....1.......41114..1.....41111............444..44444...", /* BDS */
     ".........................3......................3333333............."  /* IRN */
+};
+static const char vercode4[][MAXCODE]={ /* supported obs-type by RINEX version */
+  /* 0........1.........2.........3.........4.........5.........6........          */
+  /* 11111111111112222222222555777666666688822663331155599991555677788444     CODE */
+  /* CPWYMNSLEABXZCDSLXPWYMNIQXIQXABCXZSLIQXIQIQIQXIQABCABCXDDPZEDPZDPABX          */
+	"00000000...0.0000000000000..........................................", /* GPS */
+	"00...........0....0..........00.0..........000...................000", /* GLO */
+	"0........0000..........0000000000...000.............................", /* GAL */
+	"0.....000.000..000.....000......0000....................0000........", /* QZS */
+	"0......................000..........................................", /* SBS */
+	".0...0...0.0.....0.......00000..0.....00000............000..00000...", /* BDS */
+	".1.........1.............0......................00000001............"  /* IRN */
 };
 /* convert RINEX obs-type ver.3 -> ver.2 -------------------------------------*/
 static void convcode(int rnxver, int sys, char *type)
@@ -391,8 +403,16 @@ static void setopt_obstype(const uint8_t *codes, const uint8_t *types, int sys,
         if (!(opt->freqtype&(1<<idx))||opt->mask[sys][codes[i]-1]=='0') {
             continue;
         }
-        if (opt->rnxver>=300) {
-            ver=vercode[sys][codes[i]-1];
+		if (opt->rnxver>=400) {
+			ver=vercode4[sys][codes[i]-1];
+            if (ver<'0'||ver>'0'+opt->rnxver-400) {
+                trace(2,"unsupported obs type: rnxver=%.2f sys=%d code=%s\n",
+                      opt->rnxver/100.0,navsys[sys],code2obs(codes[i]));
+                continue;
+            }
+		}
+		else if (opt->rnxver>=300) {
+            ver=vercode3[sys][codes[i]-1];
             if (ver<'0'||ver>'0'+opt->rnxver-300) {
                 trace(2,"unsupported obs type: rnxver=%.2f sys=%d code=%s\n",
                       opt->rnxver/100.0,navsys[sys],code2obs(codes[i]));

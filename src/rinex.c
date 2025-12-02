@@ -1192,9 +1192,11 @@ static int decode_eph(double ver, int sat, gtime_t toc, const double *data,
                 eph->code|=(1<<NAVID_GPS_CNV2);
             }
 
-            wn_op=(int)data[idx0+1];        /* week number of operation */
-            eph->flag=(int)data[idx0+2];    /* integrity flag */
-
+			wn_op=(int)data[idx0+1];        /* week number of operation */
+			if (ver>=4.02) {
+				eph->flag=(int)data[idx0+2];    /* integrity flag */
+				/* b0: integrity status, b1: L2C phasing, b2: alert */
+			}
             eph->top=adjweek(gpst2time(wn_op,data[11]),toc);
             eph->ttr=adjweek(gpst2time(eph->week,data[idx0]),toc);
         }
@@ -2502,7 +2504,8 @@ static void outnavf_n(FILE *fp, double value, int n)
 }
 static void outnavf(FILE *fp, double value)
 {
-    outnavf_n(fp,value,12);
+	/*outnavf_n(fp,value,12);*/
+	fprintf(fp,"%19.12e",value);
 }
 /* output iono correction for a system ---------------------------------------*/
 static void out_iono_sys(FILE *fp, const char *sys, const double *ion, int n)
@@ -2890,9 +2893,10 @@ extern int outrnxnavb(FILE *fp, const rnxopt_t *opt, const eph_t *eph)
         /* Line 8 or 9 */
         outnavf(fp,ttr+(week-eph->week)*604800.0);
         time2gpst(eph->top,&week);
-        outnavf(fp,week); /* wn op */
-        outnavf(fp,eph->flag); /* integer flags */
-
+		outnavf(fp,week); /* wn op */
+		if (opt->rnxver>=402) {
+			outnavf(fp,eph->flag); /* integer flags */
+        }
     } else if (((sys==SYS_CMP)&&(navid==NAVID_CMP_CNV1||navid==NAVID_CMP_CNV2||navid==NAVID_CMP_CNV3))) {
         if (navid==NAVID_CMP_CNV1||navid==NAVID_CMP_CNV2) {
             outnavf(fp,eph->tgd[0]); /* BDS: ISC B1Cd */
@@ -2970,7 +2974,7 @@ extern int outrnxgnavh(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
         fprintf(fp,"%9.2f           %-20s%-20s%-20s\n",opt->rnxver/100.0,
                 "GLONASS NAV DATA","","RINEX VERSION / TYPE");
     }
-    else { /* ver.3 */
+    else { /* ver.3/4 */
         fprintf(fp,"%9.2f           %-20s%-20s%-20s\n",opt->rnxver/100.0,
                 "N: GNSS NAV DATA","R: GLONASS","RINEX VERSION / TYPE");
     }
@@ -3024,7 +3028,7 @@ extern int outrnxgnavb(FILE *fp, const rnxopt_t *opt, const geph_t *geph)
                 (int)ep[0]%100,ep[1],ep[2],ep[3],ep[4],ep[5]);
         sep="   ";
     }
-    else { /* ver.3 */
+    else { /* ver.3/4 */
         if (!sat2code(geph->sat,code)) return 0;
         fprintf(fp,"%-3s %04.0f %02.0f %02.0f %02.0f %02.0f %02.0f",code,ep[0],
                 ep[1],ep[2],ep[3],ep[4],ep[5]);
@@ -3077,7 +3081,7 @@ extern int outrnxhnavh(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
         fprintf(fp,"%9.2f           %-20s%-20s%-20s\n",opt->rnxver/100.0,
                 "H: GEO NAV MSG DATA","","RINEX VERSION / TYPE");
     }
-    else { /* ver.3 */
+    else { /* ver.3/4 */
         fprintf(fp,"%9.2f           %-20s%-20s%-20s\n",opt->rnxver/100.0,
                 "N: GNSS NAV DATA","S: SBAS Payload","RINEX VERSION / TYPE");
     }
