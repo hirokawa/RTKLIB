@@ -185,7 +185,7 @@ extern int ionocorr(gtime_t time, const nav_t *nav, int sat, const double *pos,
     
     /* GPS broadcast ionosphere model */
     if (ionoopt==IONOOPT_BRDC) {
-        *ion=ionmodel(time,nav->ion_gps,pos,azel);
+        *ion=ionmodel(time,nav->ion[ION_GPS_LNAV_KLOB].d,pos,azel);
         *var=SQR(*ion*ERR_BRDCI);
         return 1;
     }
@@ -198,8 +198,8 @@ extern int ionocorr(gtime_t time, const nav_t *nav, int sat, const double *pos,
         return iontec(time,nav,pos,azel,1,ion,var);
     }
     /* QZSS broadcast ionosphere model */
-    if (ionoopt==IONOOPT_QZS&&norm(nav->ion_qzs,8)>0.0) {
-        *ion=ionmodel(time,nav->ion_qzs,pos,azel);
+    if (ionoopt==IONOOPT_QZS&&norm(nav->ion[ION_QZS_LNAV_KLOB].d,8)>0.0) {
+        *ion=ionmodel(time,nav->ion[ION_GPS_LNAV_KLOB].d,pos,azel);
         *var=SQR(*ion*ERR_BRDCI);
         return 1;
     }

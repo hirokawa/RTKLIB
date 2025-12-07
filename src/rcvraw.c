@@ -1453,3 +1453,100 @@ extern int input_rawf(raw_t *raw, int format, FILE *fp)
     }
     return -2;
 }
+
+/* UTC 8-bit week -> full week -----------------------------------------------*/
+extern void adj_utcweek(gtime_t time, double *utc)
+{
+	int week;
+    double week_utc=utc[3];
+
+    time2gpst(time,&week);
+	utc[3]+=week/256*256;
+	if      (utc[3]<week-127) utc[3]+=256;
+	else if (utc[3]>week+127) utc[3]-=256;
+	utc[5]+=week/256*256;
+	if      (utc[5]<week-127) utc[5]+=256;
+	else if (utc[5]>week+127) utc[5]-=256;
+}
+
+/* set ionosphere delay model parameters */
+extern void set_ion_param(raw_t *raw, int sat, int navtype, double *ion)
+{
+	int sys=satsys(sat,NULL),id=-1,n=8,i;
+	ion_t *iond;
+
+	if (sys==SYS_NONE) return;
+
+	switch (sys) {
+		case SYS_GPS:
+			id=(navtype==NAV_GPS_LNAV)?ION_GPS_LNAV_KLOB:ION_GPS_CNVX_KLOB;
+			break;
+		case SYS_QZS:
+			id=(navtype==NAV_QZS_LNAV)?ION_QZS_LNAV_KLOB:ION_QZS_CNVX_KLOB;
+			break;
+		case SYS_GAL: id=ION_GAL_IFNV_NEQN;break;
+		case SYS_GLO:
+			if (navtype==NAV_GLO_L1OC||navtype==NAV_GLO_L3OC) {
+                id=ION_GLO_LXOC_CDMA;
+            }
+			break;
+		case SYS_CMP:
+			if (navtype==NAV_BDS_D1||navtype==NAV_BDS_D2) {
+				id=ION_CMP_D1D2_KLOB;
+			} else {
+				id=ION_CMP_CNVX_BDGIM;n=9;
+            }
+			break;
+		case SYS_IRN:
+			if (navtype==NAV_IRN_L1NV) {
+				id=ION_IRN_L1NV_KLOB;
+                n=12;
+            }
+			break;
+	}
+	if (id==-1) {
+		return;
+	}
+	iond=&raw->nav.ion[id];
+    iond->sat=sat;
+    iond->ttm=raw->time;
+
+	if (id==ION_GAL_IFNV_NEQN) {
+		matcpy(iond->d,ion,3,1);
+		iond->idf[0]=(int)ion[3];
+	} else if (id==ION_IRN_L1NV_NEQN) {
+		for (i=0;i<3;i++) {
+			matcpy(iond->d+3*i,ion+4*i,3,1);
+			iond->idf[i]=(int)ion[4*i+3];
+		}
+	} else {
+		matcpy(iond->d,ion,n,1);
+	}
+}
+
+/* set UTC parameters */
+extern void set_utc_param(raw_t *raw, int sat, int navtype, double *utc)
+{
+	int sys,tsys=TSYS_GPS;
+    sto_t *sto;
+
+	sys=satsys(sat,NULL);
+	if (sys==SYS_NONE) return;
+
+	if (sys==SYS_QZS) {
+		tsys=TSYS_QZS;
+	}
+	else {
+		tsys=TSYS_GPS;
+	}
+
+	sto=&raw->nav.sto[tsys];
+    sto->src=tsys;
+    sto->dst=TSYS_UTC;
+	sto->a[0]=utc[0];
+	sto->a[1]=utc[1];
+	sto->t0=gpst2time(utc[3],utc[2]);
+	sto->tlsf=gpst2time(utc[5],utc[6]*86400.0);
+	sto->dt_ls=utc[4];
+	sto->dt_lsf=utc[7];
+}

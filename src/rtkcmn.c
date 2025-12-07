@@ -2881,7 +2881,9 @@ extern int readnav(const char *file, nav_t *nav)
     geph_t geph0={0};
     char buff[4096],*p;
     long toe_time,tof_time,toc_time,ttr_time;
-    int i,sat,prn;
+	int i,sat,prn;
+	double ion_gps[8],utc_gps[8];
+	sto_t *sto=&nav->sto[TSYS_GPS];
     
     trace(3,"loadnav: file=%s\n",file);
     
@@ -2889,14 +2891,23 @@ extern int readnav(const char *file, nav_t *nav)
     
     while (fgets(buff,sizeof(buff),fp)) {
         if (!strncmp(buff,"IONUTC",6)) {
-            for (i=0;i<8;i++) nav->ion_gps[i]=0.0;
-            for (i=0;i<8;i++) nav->utc_gps[i]=0.0;
+			for (i=0;i<8;i++) ion_gps[i]=0.0;
+			for (i=0;i<8;i++) utc_gps[i]=0.0;
             sscanf(buff,"IONUTC,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf",
-                   &nav->ion_gps[0],&nav->ion_gps[1],&nav->ion_gps[2],&nav->ion_gps[3],
-                   &nav->ion_gps[4],&nav->ion_gps[5],&nav->ion_gps[6],&nav->ion_gps[7],
-                   &nav->utc_gps[0],&nav->utc_gps[1],&nav->utc_gps[2],&nav->utc_gps[3],
-                   &nav->utc_gps[4]);
-            continue;   
+				   &ion_gps[0],&ion_gps[1],&ion_gps[2],&ion_gps[3],
+				   &ion_gps[4],&ion_gps[5],&ion_gps[6],&ion_gps[7],
+				   &utc_gps[0],&utc_gps[1],&utc_gps[2],&utc_gps[3],
+				   &utc_gps[4]);
+			matcpy(nav->ion[ION_GPS_LNAV_KLOB].d,ion_gps,8,1);
+			sto->a[0]=utc_gps[0];
+			sto->a[1]=utc_gps[1];
+			sto->src=TSYS_GPS;
+			sto->dst=TSYS_UTC;
+			sto->t0=gpst2time(utc_gps[3],utc_gps[2]);
+			sto->tlsf=gpst2time(utc_gps[5],utc_gps[6]*86400.0);
+			sto->dt_ls=utc_gps[4];
+			sto->dt_lsf=utc_gps[7];
+			continue;
         }
         if ((p=strchr(buff,','))) *p='\0'; else continue;
         if (!(sat=satid2no(buff))) continue;
@@ -2944,9 +2955,12 @@ extern int readnav(const char *file, nav_t *nav)
 extern int savenav(const char *file, const nav_t *nav)
 {
     FILE *fp;
-    int i;
-    char id[32];
-    
+	int i,w;
+	char id[32];
+	const double *ion_gps;
+	double utc_gps[8],t;
+	const sto_t *sto;
+
     trace(3,"savenav: file=%s\n",file);
     
     if (!(fp=fopen(file,"w"))) return 0;
@@ -2979,13 +2993,25 @@ extern int savenav(const char *file, const nav_t *nav)
                 nav->geph[i].vel[0],nav->geph[i].vel[1],nav->geph[i].vel[2],
                 nav->geph[i].acc[0],nav->geph[i].acc[1],nav->geph[i].acc[2],
                 nav->geph[i].taun,nav->geph[i].gamn,nav->geph[i].dtaun);
-    }
-    fprintf(fp,"IONUTC,%.14E,%.14E,%.14E,%.14E,%.14E,%.14E,%.14E,%.14E,%.14E,"
+	}
+	ion_gps=&nav->ion[ION_GPS_LNAV_KLOB].d[0];
+    sto=&nav->sto[TSYS_GPS];
+	utc_gps[0]=sto->a[0];
+	utc_gps[1]=sto->a[1];
+	t=time2gpst(sto->t0,&w);
+	utc_gps[2]=t;
+	utc_gps[3]=w;
+	utc_gps[4]=sto->dt_ls;
+	t=time2gpst(sto->tlsf,&w);
+	utc_gps[5]=w;
+	utc_gps[6]=t/86400.0;
+    utc_gps[7]=sto->dt_lsf;
+	fprintf(fp,"IONUTC,%.14E,%.14E,%.14E,%.14E,%.14E,%.14E,%.14E,%.14E,%.14E,"
                "%.14E,%.14E,%.14E,%.0f",
-            nav->ion_gps[0],nav->ion_gps[1],nav->ion_gps[2],nav->ion_gps[3],
-            nav->ion_gps[4],nav->ion_gps[5],nav->ion_gps[6],nav->ion_gps[7],
-            nav->utc_gps[0],nav->utc_gps[1],nav->utc_gps[2],nav->utc_gps[3],
-            nav->utc_gps[4]);
+			ion_gps[0],ion_gps[1],ion_gps[2],ion_gps[3],
+			ion_gps[4],ion_gps[5],ion_gps[6],ion_gps[7],
+			utc_gps[0],utc_gps[1],utc_gps[2],utc_gps[3],
+			utc_gps[4]);
     
     fclose(fp);
     return 1;
@@ -3124,7 +3150,8 @@ extern void traceobs(int level, const obsd_t *obs, int n)
 extern void tracenav(int level, const nav_t *nav)
 {
     char s1[64],s2[64],id[16];
-    int i;
+	int i;
+	const double *ion_gps,*ion_gal;
     
     if (!fp_trace||level>level_trace) return;
     for (i=0;i<nav->n;i++) {
@@ -3133,13 +3160,17 @@ extern void tracenav(int level, const nav_t *nav)
         satno2id(nav->eph[i].sat,id);
         fprintf(fp_trace,"(%3d) %-3s : %s %s %3d %3d %02x\n",i+1,
                 id,s1,s2,nav->eph[i].iode,nav->eph[i].iodc,nav->eph[i].svh);
-    }
-    fprintf(fp_trace,"(ion) %9.4e %9.4e %9.4e %9.4e\n",nav->ion_gps[0],
-            nav->ion_gps[1],nav->ion_gps[2],nav->ion_gps[3]);
-    fprintf(fp_trace,"(ion) %9.4e %9.4e %9.4e %9.4e\n",nav->ion_gps[4],
-            nav->ion_gps[5],nav->ion_gps[6],nav->ion_gps[7]);
-    fprintf(fp_trace,"(ion) %9.4e %9.4e %9.4e %9.4e\n",nav->ion_gal[0],
-            nav->ion_gal[1],nav->ion_gal[2],nav->ion_gal[3]);
+	}
+
+	ion_gps=&nav->ion[ION_GPS_LNAV_KLOB].d[0];
+	ion_gal=&nav->ion[ION_GAL_IFNV_NEQN].d[0];
+
+	fprintf(fp_trace,"(ion) %9.4e %9.4e %9.4e %9.4e\n",ion_gps[0],
+			ion_gps[1],ion_gps[2],ion_gps[3]);
+	fprintf(fp_trace,"(ion) %9.4e %9.4e %9.4e %9.4e\n",ion_gps[4],
+			ion_gps[5],ion_gps[6],ion_gps[7]);
+	fprintf(fp_trace,"(ion) %9.4e %9.4e %9.4e %9.4e\n",ion_gal[0],
+            ion_gal[1],ion_gal[2],ion_gal[3]);
 }
 extern void tracegnav(int level, const nav_t *nav)
 {

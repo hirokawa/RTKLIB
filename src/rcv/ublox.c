@@ -720,19 +720,6 @@ static int decode_trkd5(raw_t *raw)
     raw->obs.n=n;
     return 1;
 }
-/* UTC 8-bit week -> full week -----------------------------------------------*/
-static void adj_utcweek(gtime_t time, double *utc)
-{
-    int week;
-    
-    time2gpst(time,&week);
-    utc[3]+=week/256*256;
-    if      (utc[3]<week-127) utc[3]+=256.0;
-    else if (utc[3]>week+127) utc[3]-=256.0;
-    utc[5]+=utc[3]/256*256;
-    if      (utc[5]<utc[3]-127) utc[5]+=256.0;
-    else if (utc[5]>utc[3]+127) utc[5]-=256.0;
-}
 /* decode GPS/QZSS ephemeris -------------------------------------------------*/
 static int decode_eph(raw_t *raw, int sat)
 {
@@ -756,20 +743,18 @@ static int decode_eph(raw_t *raw, int sat)
 static int decode_ionutc(raw_t *raw, int sat)
 {
     double ion[8],utc[8];
-    int sys=satsys(sat,NULL);
-    
-    if (!decode_frame(raw->subfrm[sat-1],NULL,NULL,ion,utc)) return 0;
-    
-    adj_utcweek(raw->time,utc);
-    if (sys==SYS_QZS) {
-        matcpy(raw->nav.ion_qzs,ion,8,1);
-        matcpy(raw->nav.utc_qzs,utc,8,1);
-    }
-    else {
-        matcpy(raw->nav.ion_gps,ion,8,1);
-        matcpy(raw->nav.utc_gps,utc,8,1);
-    }
-    return 9;
+	int sys=satsys(sat,NULL),navtype;
+	sto_t *sto;
+	
+	if (!decode_frame(raw->subfrm[sat-1],NULL,NULL,ion,utc)) return 0;
+	
+	adj_utcweek(raw->time,utc);
+
+	navtype=(sys==SYS_QZS)?NAV_QZS_LNAV:NAV_GPS_LNAV;
+	set_ion_param(raw,sat,navtype,ion);
+ 	set_utc_param(raw,sat,navtype,utc);
+
+	return 9;
 }
 /* decode GPS/QZSS navigation data -------------------------------------------*/
 static int decode_nav(raw_t *raw, int sat, int off)
@@ -860,9 +845,10 @@ static int decode_enav(raw_t *raw, int sat, int off)
     }
     eph.code|=(1<<0); /* data source: E1 */
     
-    adj_utcweek(raw->time,utc);
-    matcpy(raw->nav.ion_gal,ion,4,1);
-    matcpy(raw->nav.utc_gal,utc,8,1);
+	adj_utcweek(raw->time,utc);
+	set_ion_param(raw,sat,NAV_GAL_INAV,ion);
+	set_utc_param(raw,sat,NAV_GAL_INAV,utc);
+    //matcpy(raw->nav.utc_gal,utc,8,1);
     
     if (!strstr(raw->opt,"-EPHALL")) {
         if (eph.iode==raw->nav.eph[sat-1].iode&&
@@ -903,9 +889,9 @@ static int decode_cnav(raw_t *raw, int sat, int off)
             if (!decode_bds_d1(raw->subfrm[sat-1],&eph,NULL,NULL)) return 0;
         }
         else if (id==5) {
-            if (!decode_bds_d1(raw->subfrm[sat-1],NULL,ion,utc)) return 0;
-            matcpy(raw->nav.ion_cmp,ion,8,1);
-            matcpy(raw->nav.utc_cmp,utc,8,1);
+			if (!decode_bds_d1(raw->subfrm[sat-1],NULL,ion,utc)) return 0;
+			set_ion_param(raw,sat,NAV_BDS_D1,ion);
+			set_utc_param(raw,sat,NAV_BDS_D1,utc);
             return 9;
         }
         else return 0;
@@ -921,7 +907,7 @@ static int decode_cnav(raw_t *raw, int sat, int off)
         else if (id==5&&pgn==102) {
             memcpy(raw->subfrm[sat-1]+10*38,buff,38);
             if (!decode_bds_d2(raw->subfrm[sat-1],NULL,utc)) return 0;
-            matcpy(raw->nav.utc_cmp,utc,8,1);
+			set_utc_param(raw,sat,NAV_BDS_D2,utc);
             return 9;
         }
         else return 0;
@@ -988,7 +974,7 @@ static int decode_gnav(raw_t *raw, int sat, int off, int frq)
     }
     else if (m==5) {
         if (!decode_glostr(raw->subfrm[sat-1],NULL,utc_glo)) return 0;
-        matcpy(raw->nav.utc_glo,utc_glo,8,1);
+		set_utc_param(raw,sat,NAV_GLO_L1OC,utc_glo);
         return 9;
     }
     return 0;

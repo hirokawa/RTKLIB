@@ -1369,8 +1369,7 @@ static int DecodeIONAndUTCData(raw_t *Raw)
     int week;
     uint8_t *p = rt17->PacketBuffer;
     nav_t *nav = &Raw->nav;
-    double *ion_gps = nav->ion_gps;
-    double *utc_gps = nav->utc_gps;
+    double ion_gps[8],utc_gps[8];
 
     tracet(3, "RT17: DecodeIONAndUTCData, Length=%d.\n", rt17->PacketLength);
 
@@ -1402,7 +1401,9 @@ static int DecodeIONAndUTCData(raw_t *Raw)
     /* Unused by RTKLIB U1 */   /* 119-119: WNSUBLSF */
     /* Unused by RTKLIB U1 */   /* 120-120: DN */
     /* Reserved six bytes */    /* 121-126: RESERVED */
-   
+
+	set_ion_param(Raw,1,NAV_GPS_LNAV,ion_gps);
+    set_utc_param(Raw,1,NAV_GPS_LNAV,utc_gps);
    return 9;
 }
 

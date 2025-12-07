@@ -761,7 +761,8 @@ static int decode_IE(raw_t *raw)
 /* decode [UO] GPS UTC time parameters ---------------------------------------*/
 static int decode_UO(raw_t *raw)
 {
-    uint8_t *p=raw->buff+5;
+	uint8_t *p=raw->buff+5;
+    double utc_gps[8];
     
     if (!checksum(raw->buff,raw->len)) {
         trace(2,"javad UO checksum error: len=%d\n",raw->len);
@@ -771,11 +772,12 @@ static int decode_UO(raw_t *raw)
         trace(2,"javad UO length error: len=%d\n",raw->len);
         return -1;
     }
-    raw->nav.utc_gps[0]=R8(p); p+=8;
-    raw->nav.utc_gps[1]=R4(p); p+=4;
-    raw->nav.utc_gps[2]=U4(p); p+=4;
-    raw->nav.utc_gps[3]=adjgpsweek((int)U2(p)); p+=2;
-    raw->nav.utc_gps[4]=I1(p);
+	utc_gps[0]=R8(p); p+=8;
+	utc_gps[1]=R4(p); p+=4;
+	utc_gps[2]=U4(p); p+=4;
+	utc_gps[3]=adjgpsweek((int)U2(p)); p+=2;
+	utc_gps[4]=I1(p);
+    set_utc_param(raw,1,NAV_GPS_LNAV,utc_gps);
     return 9;
 }
 /* decode [NU] GLONASS UTC and GPS time parameters ---------------------------*/
@@ -810,7 +812,8 @@ static int decode_QU(raw_t *raw)
 static int decode_IO(raw_t *raw)
 {
     int i;
-    uint8_t *p=raw->buff+5;
+	uint8_t *p=raw->buff+5;
+    double ion_gps[8];
     
     if (!checksum(raw->buff,raw->len)) {
         trace(2,"javad IO checksum error: len=%d\n",raw->len);
@@ -822,8 +825,9 @@ static int decode_IO(raw_t *raw)
     }
     p+=4+2;
     for (i=0;i<8;i++) {
-        raw->nav.ion_gps[i]=R4(p); p+=4;
-    }
+		ion_gps[i]=R4(p); p+=4;
+	}
+    set_ion_param(raw,1,NAV_GPS_LNAV,ion_gps);
     return 9;
 }
 /* decode L1 ephemeris -------------------------------------------------------*/
@@ -843,19 +847,6 @@ static int decode_L1eph(int sat, raw_t *raw)
     raw->ephset=0;
     return 2;
 }
-/* UTC 8-bit week -> full week -----------------------------------------------*/
-static void adj_utcweek(gtime_t time, double *utc)
-{
-    int week;
-    
-    time2gpst(time,&week);
-    utc[3]+=week/256*256;
-    if      (utc[3]<week-127) utc[3]+=256.0;
-    else if (utc[3]>week+127) utc[3]-=256.0;
-    utc[5]+=utc[3]/256*256;
-    if      (utc[5]<utc[3]-127) utc[5]+=256.0;
-    else if (utc[5]>utc[3]+127) utc[5]-=256.0;
-}
 /* decode L1 ION/UTC parameters ----------------------------------------------*/
 static int decode_L1ionutc(int sat, raw_t *raw)
 {
@@ -865,13 +856,13 @@ static int decode_L1ionutc(int sat, raw_t *raw)
     if (!decode_frame(raw->subfrm[sat-1],NULL,NULL,ion,utc)) return 0;
     
     adj_utcweek(raw->time,utc);
-    if (sys==SYS_QZS) {
-        matcpy(raw->nav.ion_qzs,ion,8,1);
-        matcpy(raw->nav.utc_qzs,utc,8,1);
-    }
-    else {
-        matcpy(raw->nav.ion_gps,ion,8,1);
-        matcpy(raw->nav.utc_gps,utc,8,1);
+	if (sys==SYS_QZS) {
+		set_ion_param(raw,sat,NAV_QZS_LNAV,ion);
+		set_utc_param(raw,sat,NAV_QZS_LNAV,utc);
+	}
+	else {
+		set_ion_param(raw,sat,NAV_GPS_LNAV,ion);
+		set_utc_param(raw,sat,NAV_GPS_LNAV,utc);
     }
     return 9;
 }

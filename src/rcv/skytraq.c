@@ -113,17 +113,6 @@ static uint8_t checksum(uint8_t *buff, int len)
     }
     return cs;
 }
-/* 8-bit week -> full week ---------------------------------------------------*/
-static void adj_utcweek(gtime_t time, double *utc)
-{
-    int week;
-    
-    if (utc[3]>=256.0) return;
-    time2gpst(time,&week);
-    utc[3]+=week/256*256;
-    if      (utc[3]<week-128) utc[3]+=256.0;
-    else if (utc[3]>week+128) utc[3]-=256.0;
-}
 /* decode skytraq measurement epoch (0xDC) -----------------------------------*/
 static int decode_stqtime(raw_t *raw)
 {
@@ -406,26 +395,28 @@ static int decode_ephem(int sat, raw_t *raw)
 /* decode almanac and ion/utc ------------------------------------------------*/
 static int decode_alm1(int sat, raw_t *raw)
 {
-    int sys=satsys(sat,NULL);
+	int sys=satsys(sat,NULL),navtype=NAV_GPS_LNAV;
+	double ion[8],utc[8];
     
     trace(4,"decode_alm1 : sat=%2d\n",sat);
     
-    if (sys==SYS_GPS) {
-        decode_frame(raw->subfrm[sat-1],NULL,raw->nav.alm,raw->nav.ion_gps,
-                     raw->nav.utc_gps);
-        adj_utcweek(raw->time,raw->nav.utc_gps);
-    }
-    else if (sys==SYS_QZS) {
-        decode_frame(raw->subfrm[sat-1],NULL,raw->nav.alm,raw->nav.ion_qzs,
-                     raw->nav.utc_qzs);
-        adj_utcweek(raw->time,raw->nav.utc_qzs);
-    }
+	if (sys==SYS_GPS) {
+		navtype=NAV_GPS_LNAV;
+	}
+	else if (sys==SYS_QZS) {
+		navtype=NAV_QZS_LNAV;
+	}
+	decode_frame(raw->subfrm[sat-1],NULL,raw->nav.alm,ion,utc);
+	adj_utcweek(raw->time,utc);
+	set_ion_param(raw,sat,navtype,ion);
+	set_utc_param(raw,sat,navtype,utc);
     return 9;
 }
 /* decode almanac ------------------------------------------------------------*/
 static int decode_alm2(int sat, raw_t *raw)
 {
-    int sys=satsys(sat,NULL);
+	int sys=satsys(sat,NULL),navtype=NAV_QZS_LNAV;
+	double ion[8],utc[8];
     
     trace(4,"decode_alm2 : sat=%2d\n",sat);
     
@@ -433,10 +424,12 @@ static int decode_alm2(int sat, raw_t *raw)
         decode_frame(raw->subfrm[sat-1],NULL,raw->nav.alm,NULL,NULL);
     }
     else if (sys==SYS_QZS) {
-        decode_frame(raw->subfrm[sat-1],NULL,raw->nav.alm,raw->nav.ion_qzs,
-                     raw->nav.utc_qzs);
-        adj_utcweek(raw->time,raw->nav.utc_qzs);
-    }
+		decode_frame(raw->subfrm[sat-1],NULL,raw->nav.alm,ion,utc);
+		adj_utcweek(raw->time,utc);
+		set_ion_param(raw,sat,navtype,ion);
+		set_utc_param(raw,sat,navtype,utc);
+	}
+
     return  0;
 }
 /* decode gps/qzss subframe (0xE0) -------------------------------------------*/

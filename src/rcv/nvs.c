@@ -387,33 +387,39 @@ static int decode_xe5bit(raw_t *raw)
 /* decode NVS x4aiono --------------------------------------------------------*/
 static int decode_x4aiono(raw_t *raw)
 {
-    uint8_t *p=raw->buff+2;
+	uint8_t *p=raw->buff+2;
+    double ion_gps[8];
     
     trace(4,"decode_x4aiono: len=%d\n", raw->len);
     
-    raw->nav.ion_gps[0] = R4(p   );
-    raw->nav.ion_gps[1] = R4(p+ 4);
-    raw->nav.ion_gps[2] = R4(p+ 8);
-    raw->nav.ion_gps[3] = R4(p+12);
-    raw->nav.ion_gps[4] = R4(p+16);
-    raw->nav.ion_gps[5] = R4(p+20);
-    raw->nav.ion_gps[6] = R4(p+24);
-    raw->nav.ion_gps[7] = R4(p+28);
+	ion_gps[0] = R4(p   );
+	ion_gps[1] = R4(p+ 4);
+	ion_gps[2] = R4(p+ 8);
+	ion_gps[3] = R4(p+12);
+	ion_gps[4] = R4(p+16);
+	ion_gps[5] = R4(p+20);
+	ion_gps[6] = R4(p+24);
+	ion_gps[7] = R4(p+28);
+
+    set_ion_param(raw,1,NAV_GPS_LNAV,ion_gps);
     
     return 9;
 }
 /* decode NVS x4btime --------------------------------------------------------*/
 static int decode_x4btime(raw_t *raw)
 {
-    uint8_t *p=raw->buff+2;
+	uint8_t *p=raw->buff+2;
+    double utc_gps[8];
     
     trace(4,"decode_x4btime: len=%d\n", raw->len);
     
-    raw->nav.utc_gps[1] = R8(p   );
-    raw->nav.utc_gps[0] = R8(p+ 8);
-    raw->nav.utc_gps[2] = I4(p+16);
-    raw->nav.utc_gps[3] = I2(p+20);
-    raw->nav.utc_gps[4] = I1(p+22);
+	utc_gps[1] = R8(p   );
+	utc_gps[0] = R8(p+ 8);
+	utc_gps[2] = I4(p+16);
+	utc_gps[3] = I2(p+20);
+	utc_gps[4] = I1(p+22);
+
+    set_utc_param(raw,1,NAV_GPS_LNAV,utc_gps);
     
     return 9;
 }

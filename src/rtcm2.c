@@ -116,8 +116,8 @@ static int decode_type14(rtcm_t *rtcm)
         return -1;
     }
     week=adjgpsweek(week);
-    rtcm->time=gpst2time(week,hour*3600.0+zcnt*0.6);
-    rtcm->nav.utc_gps[4]=leaps;
+	rtcm->time=gpst2time(week,hour*3600.0+zcnt*0.6);
+    rtcm->nav.sto[TSYS_GPS].dt_ls=leaps;
     return 6;
 }
 /* decode type 16: gps special message ---------------------------------------*/

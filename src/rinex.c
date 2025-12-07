@@ -538,11 +538,13 @@ static void decode_obsh(FILE *fp, char *buff, double ver, int *tsys,
         }
     }
     else if (strstr(label,"LEAP SECONDS"        )) { /* opt */
-        if (nav) {
-            nav->utc_gps[4]=str2num(buff, 0,6);
-            nav->utc_gps[7]=str2num(buff, 6,6);
-            nav->utc_gps[5]=str2num(buff,12,6);
-            nav->utc_gps[6]=str2num(buff,18,6);
+        if (nav) { /* dt_ls, dt_lsf, wn_lsf, dn, tsys id */
+            int wn_lsf,dn;
+            nav->sto[TSYS_GPS].dt_ls=str2num(buff, 0,6);
+            nav->sto[TSYS_GPS].dt_lsf=str2num(buff, 6,6);
+            wn_lsf=str2num(buff,12,6);
+            dn=str2num(buff,18,6);
+            nav->sto[TSYS_GPS].tlsf=gpst2time(wn_lsf,dn*86400.0);
         }
     }
     else if (strstr(label,"# OF SALTELLITES"    )) { /* opt */
@@ -555,111 +557,121 @@ static void decode_obsh(FILE *fp, char *buff, double ver, int *tsys,
 /* decode RINEX NAV header ---------------------------------------------------*/
 static void decode_navh(char *buff, nav_t *nav)
 {
-    int i,j;
+    int i,j,t,w,dn;
     char *label=buff+60;
     
     trace(4,"decode_navh:\n");
     
     if      (strstr(label,"ION ALPHA"           )) { /* opt ver.2 */
         if (nav) {
-            for (i=0,j=2;i<4;i++,j+=12) nav->ion_gps[i]=str2num(buff,j,12);
+            for (i=0,j=2;i<4;i++,j+=12) nav->ion[ION_GPS_LNAV_KLOB].d[i]=str2num(buff,j,12);
         }
     }
     else if (strstr(label,"ION BETA"            )) { /* opt ver.2 */
         if (nav) {
-            for (i=0,j=2;i<4;i++,j+=12) nav->ion_gps[i+4]=str2num(buff,j,12);
+            for (i=0,j=2;i<4;i++,j+=12) nav->ion[ION_GPS_LNAV_KLOB].d[i+4]=str2num(buff,j,12);
         }
     }
     else if (strstr(label,"DELTA-UTC: A0,A1,T,W")) { /* opt ver.2 */
         if (nav) {
-            for (i=0,j=3;i<2;i++,j+=19) nav->utc_gps[i]=str2num(buff,j,19);
-            for (;i<4;i++,j+=9) nav->utc_gps[i]=str2num(buff,j,9);
+            for (i=0,j=3;i<2;i++,j+=19) nav->sto[TSYS_GPS].a[i]=str2num(buff,j,19);
+            t=str2num(buff,j,9);j+=9;
+            w=str2num(buff,j,9);
+            nav->sto[TSYS_GPS].t0=gpst2time(t,w);
         }
     }
     else if (strstr(label,"IONOSPHERIC CORR"    )) { /* opt ver.3 */
         if (nav) {
             if (!strncmp(buff,"GPSA",4)) {
-                for (i=0,j=5;i<4;i++,j+=12) nav->ion_gps[i]=str2num(buff,j,12);
+                for (i=0,j=5;i<4;i++,j+=12) nav->ion[ION_GPS_LNAV_KLOB].d[i]=str2num(buff,j,12);
             }
             else if (!strncmp(buff,"GPSB",4)) {
-                for (i=0,j=5;i<4;i++,j+=12) nav->ion_gps[i+4]=str2num(buff,j,12);
+                for (i=0,j=5;i<4;i++,j+=12) nav->ion[ION_GPS_LNAV_KLOB].d[i+4]=str2num(buff,j,12);
             }
             else if (!strncmp(buff,"GAL",3)) {
-                for (i=0,j=5;i<4;i++,j+=12) nav->ion_gal[i]=str2num(buff,j,12);
+                for (i=0,j=5;i<3;i++,j+=12) nav->ion[ION_GAL_IFNV_NEQN].d[i]=str2num(buff,j,12);
+                nav->ion[ION_GAL_IFNV_NEQN].idf[0]=str2num(buff,j,12);
             }
             else if (!strncmp(buff,"QZSA",4)) { /* v.3.02 */
-                for (i=0,j=5;i<4;i++,j+=12) nav->ion_qzs[i]=str2num(buff,j,12);
+                for (i=0,j=5;i<4;i++,j+=12) nav->ion[ION_QZS_LNAV_KLOB].d[i]=str2num(buff,j,12);
             }
             else if (!strncmp(buff,"QZSB",4)) { /* v.3.02 */
-                for (i=0,j=5;i<4;i++,j+=12) nav->ion_qzs[i+4]=str2num(buff,j,12);
+                for (i=0,j=5;i<4;i++,j+=12) nav->ion[ION_QZS_LNAV_KLOB].d[i+4]=str2num(buff,j,12);
             }
             else if (!strncmp(buff,"BDSA",4)) { /* v.3.02 */
-                for (i=0,j=5;i<4;i++,j+=12) nav->ion_cmp[i]=str2num(buff,j,12);
+                for (i=0,j=5;i<4;i++,j+=12) nav->ion[ION_CMP_D1D2_KLOB].d[i]=str2num(buff,j,12);
             }
             else if (!strncmp(buff,"BDSB",4)) { /* v.3.02 */
-                for (i=0,j=5;i<4;i++,j+=12) nav->ion_cmp[i+4]=str2num(buff,j,12);
+                for (i=0,j=5;i<4;i++,j+=12) nav->ion[ION_CMP_D1D2_KLOB].d[i+4]=str2num(buff,j,12);
             }
             else if (!strncmp(buff,"IRNA",4)) { /* v.3.03 */
-                for (i=0,j=5;i<4;i++,j+=12) nav->ion_irn[i]=str2num(buff,j,12);
+                for (i=0,j=5;i<4;i++,j+=12) nav->ion[ION_IRN_L1NV_KLOB].d[i]=str2num(buff,j,12);
             }
             else if (!strncmp(buff,"IRNB",4)) { /* v.3.03 */
-                for (i=0,j=5;i<4;i++,j+=12) nav->ion_irn[i+4]=str2num(buff,j,12);
+                for (i=0,j=5;i<4;i++,j+=12) nav->ion[ION_IRN_L1NV_KLOB].d[i+4]=str2num(buff,j,12);
             }
         }
     }
     else if (strstr(label,"TIME SYSTEM CORR"    )) { /* opt ver.3 */
         if (nav) {
             if (!strncmp(buff,"GPUT",4)) {
-                nav->utc_gps[0]=str2num(buff, 5,17);
-                nav->utc_gps[1]=str2num(buff,22,16);
-                nav->utc_gps[2]=str2num(buff,38, 7);
-                nav->utc_gps[3]=str2num(buff,45, 5);
+                nav->sto[TSYS_GPS].a[0]=str2num(buff, 5,17);
+                nav->sto[TSYS_GPS].a[1]=str2num(buff,22,16);
+                t=str2num(buff,38, 7);
+                w=str2num(buff,45, 5);
+                nav->sto[TSYS_GPS].t0=gpst2time(t,w);
             }
             else if (!strncmp(buff,"GLUT",4)) {
-                nav->utc_glo[0]=-str2num(buff,5,17); /* tau_C */
+                nav->sto[TSYS_GLO].a[0]=-str2num(buff,5,17); /* tau_C */
             }
             else if (!strncmp(buff,"GLGP",4)) {
-                nav->utc_glo[1]=str2num(buff, 5,17); /* tau_GPS */
+                nav->sto[TSYS_GLO].a[1]=-str2num(buff, 5,17); /* tau_GPS */
             }
             else if (!strncmp(buff,"GAUT",4)) { /* v.3.02 */
-                nav->utc_gal[0]=str2num(buff, 5,17);
-                nav->utc_gal[1]=str2num(buff,22,16);
-                nav->utc_gal[2]=str2num(buff,38, 7);
-                nav->utc_gal[3]=str2num(buff,45, 5);
+                nav->sto[TSYS_GAL].a[0]=str2num(buff, 5,17);
+                nav->sto[TSYS_GAL].a[1]=str2num(buff,22,16);
+                t=str2num(buff,38, 7);
+                w=str2num(buff,45, 5);
+                nav->sto[TSYS_GAL].t0=gpst2time(t,w);
             }
             else if (!strncmp(buff,"QZUT",4)) { /* v.3.02 */
-                nav->utc_qzs[0]=str2num(buff, 5,17);
-                nav->utc_qzs[1]=str2num(buff,22,16);
-                nav->utc_qzs[2]=str2num(buff,38, 7);
-                nav->utc_qzs[3]=str2num(buff,45, 5);
+                nav->sto[TSYS_QZS].a[0]=str2num(buff, 5,17);
+                nav->sto[TSYS_QZS].a[1]=str2num(buff,22,16);
+                t=str2num(buff,38, 7);
+                w=str2num(buff,45, 5);
+                nav->sto[TSYS_QZS].t0=gpst2time(t,w);
             }
             else if (!strncmp(buff,"BDUT",4)) { /* v.3.02 */
-                nav->utc_cmp[0]=str2num(buff, 5,17);
-                nav->utc_cmp[1]=str2num(buff,22,16);
-                nav->utc_cmp[2]=str2num(buff,38, 7);
-                nav->utc_cmp[3]=str2num(buff,45, 5);
+                nav->sto[TSYS_CMP].a[0]=str2num(buff, 5,17);
+                nav->sto[TSYS_CMP].a[1]=str2num(buff,22,16);
+                t=str2num(buff,38, 7);
+                w=str2num(buff,45, 5);
+                nav->sto[TSYS_CMP].t0=gpst2time(t,w);
             }
             else if (!strncmp(buff,"SBUT",4)) { /* v.3.02 */
-                nav->utc_sbs[0]=str2num(buff, 5,17);
-                nav->utc_sbs[1]=str2num(buff,22,16);
-                nav->utc_sbs[2]=str2num(buff,38, 7);
-                nav->utc_sbs[3]=str2num(buff,45, 5);
+                nav->sto[TSYS_SBS].a[0]=str2num(buff, 5,17);
+                nav->sto[TSYS_SBS].a[1]=str2num(buff,22,16);
+                t=str2num(buff,38, 7);
+                w=str2num(buff,45, 5);
+                nav->sto[TSYS_SBS].t0=gpst2time(t,w);
             }
             else if (!strncmp(buff,"IRUT",4)) { /* v.3.03 */
-                nav->utc_irn[0]=str2num(buff, 5,17);
-                nav->utc_irn[1]=str2num(buff,22,16);
-                nav->utc_irn[2]=str2num(buff,38, 7);
-                nav->utc_irn[3]=str2num(buff,45, 5);
-                nav->utc_irn[8]=0.0; /* A2 */
+                nav->sto[TSYS_IRN].a[0]=str2num(buff, 5,17);
+                nav->sto[TSYS_IRN].a[1]=str2num(buff,22,16);
+                t=str2num(buff,38, 7);
+                w=str2num(buff,45, 5);
+                nav->sto[TSYS_IRN].t0=gpst2time(t,w);
+                nav->sto[TSYS_IRN].a[2]=0.0; /* A2 */
             }
         }
     }
     else if (strstr(label,"LEAP SECONDS"        )) { /* opt */
         if (nav) {
-            nav->utc_gps[4]=str2num(buff, 0,6);
-            nav->utc_gps[7]=str2num(buff, 6,6);
-            nav->utc_gps[5]=str2num(buff,12,6);
-            nav->utc_gps[6]=str2num(buff,18,6);
+            nav->sto[TSYS_GPS].dt_ls=str2num(buff, 0,6);
+            nav->sto[TSYS_GPS].dt_lsf=str2num(buff, 6,6);
+            w=str2num(buff,12,6);
+            dn=str2num(buff,18,6);
+            nav->sto[TSYS_GPS].tlsf=gpst2time(w,dn*86400.0);
         }
     }
 }
@@ -2510,123 +2522,285 @@ static void outnavf(FILE *fp, double value)
 /* output iono correction for a system ---------------------------------------*/
 static void out_iono_sys(FILE *fp, const char *sys, const double *ion, int n)
 {
-    const char *label1[]={"ION ALPHA","ION BETA"},*label2="IONOSPHERIC CORR";
-    char str[32];
-    int i,j;
-    
-    if (norm(ion,n)<=0.0) return;
-    
-    for (i=0;i<(n+3)/4;i++) {
-        sprintf(str,"%s%c",sys,(!*sys||n<4)?' ':'A'+i);
-        fprintf(fp,"%-*s ",!*sys?1:4,str);
-        for (j=0;j<4&&i*4+j<n;j++) {
-            fprintf(fp," ");
-            outnavf_n(fp,ion[i*4+j],4);
-        }
-        fprintf(fp,"%*s%-20s\n",!*sys?10:7+12*(4-j),"",!*sys?label1[i]:label2);
-    }
+	const char *label1[]={"ION ALPHA","ION BETA"},*label2="IONOSPHERIC CORR";
+	char str[32];
+	int i,j;
+
+	if (norm(ion,n)<=0.0) return;
+
+	for (i=0;i<(n+3)/4;i++) {
+		sprintf(str,"%s%c",sys,(!*sys||n<4)?' ':'A'+i);
+		fprintf(fp,"%-*s ",!*sys?1:4,str);
+		for (j=0;j<4&&i*4+j<n;j++) {
+			fprintf(fp," ");
+			outnavf_n(fp,ion[i*4+j],4);
+		}
+		fprintf(fp,"%*s%-20s\n",!*sys?10:7+12*(4-j),"",!*sys?label1[i]:label2);
+	}
 }
 /* output iono corrections --------------------------------------------------*/
 static void out_iono(FILE *fp, int sys, const rnxopt_t *opt, const nav_t *nav)
 {
+	if (!opt->outiono) return;
+
+	if (sys&opt->navsys&SYS_GPS) {
+		if (opt->rnxver<=211) out_iono_sys(fp,"",nav->ion[ION_GPS_LNAV_KLOB].d,8);
+		else out_iono_sys(fp,"GPS",nav->ion[ION_GPS_LNAV_KLOB].d,8);
+	}
+	if ((sys&opt->navsys&SYS_GAL)&&opt->rnxver>=212) {
+		out_iono_sys(fp,"GAL",nav->ion[ION_GAL_IFNV_NEQN].d,3);
+	}
+	if ((sys&opt->navsys&SYS_QZS)&&opt->rnxver>=302) {
+		out_iono_sys(fp,"QZS",nav->ion[ION_QZS_LNAV_KLOB].d,8);
+	}
+	if ((sys&opt->navsys&SYS_CMP)&&opt->rnxver>=302) {
+		out_iono_sys(fp,"BDS",nav->ion[ION_CMP_D1D2_KLOB].d,8);
+	}
+	if ((sys&opt->navsys&SYS_IRN)&&opt->rnxver>=303) {
+		out_iono_sys(fp,"IRN",nav->ion[ION_IRN_L1NV_KLOB].d,8);
+	}
+}
+/* output iono correction for a system (RINEX v4)-------------------------------*/
+static void out_iono_sys4(FILE *fp, const ion_t *ion)
+{
+	const char *label1[]={"ION ALPHA","ION BETA"},*label2="IONOSPHERIC CORR";
+	const char *navtype[]={"LNAV","D1D2","CNVX","IFNV"};
+	const char *regtype[]={"WIDE","JAPN"};
+	int i,j,sys,id,n;
+	double ep[6];
+    char *reg="",buff[4];
+
+    sys=satsys(ion->sat,NULL);
+    n=(sys==SYS_GAL)?3:8;
+
+	if (norm(ion->d,n)<=0.0) return;
+
+	switch (sys) {
+		case SYS_GPS: id=0; break;
+		case SYS_QZS: id=0; reg=(char *)regtype[0]; break;
+		case SYS_IRN: id=0; break;
+		case SYS_CMP: id=1; break;
+        case SYS_GAL: id=3; break;
+		default: return;
+	}
+
+    satno2id(ion->sat,buff);
+	fprintf(fp, "> ION %-3s %4s %4s\n",buff,navtype[id],"");
+	time2epoch(ion->ttm,ep);
+	fprintf(fp, "    %4.0f %2.0f %2.0f %2.0f %2.0f %2.0f",
+		ep[0],ep[1],ep[2],ep[3],ep[4],ep[5]);
+
+	outnavf(fp,ion->d[0]); /* alp0 */
+	outnavf(fp,ion->d[1]); /* alp1 */
+	outnavf(fp,ion->d[2]); /* alp2 */
+	fprintf(fp,"\n");
+	fprintf(fp,"    ");
+	outnavf(fp,ion->d[3]); /* alp3 */
+
+	if (sys!=SYS_GAL) {
+     	outnavf(fp,ion->d[4]); /* bet0 */
+		outnavf(fp,ion->d[5]); /* bet1 */
+		outnavf(fp,ion->d[6]); /* bet2 */
+		fprintf(fp,"\n");
+		fprintf(fp,"    ");
+		outnavf(fp,ion->d[7]); /* bet3 */
+	}
+	fprintf(fp,"\n");
+}
+/* output iono corrections for RINEX 4---------------------------------------*/
+static void out_iono4(FILE *fp, int sys, const rnxopt_t *opt, const nav_t *nav)
+{
     if (!opt->outiono) return;
 
-    if (sys&opt->navsys&SYS_GPS) {
-        if (opt->rnxver<=211) out_iono_sys(fp,"",nav->ion_gps,8);
-        else out_iono_sys(fp,"GPS",nav->ion_gps,8);
-    }
-    if ((sys&opt->navsys&SYS_GAL)&&opt->rnxver>=212) {
-        out_iono_sys(fp,"GAL",nav->ion_gal,3);
-    }
-    if ((sys&opt->navsys&SYS_QZS)&&opt->rnxver>=302) {
-        out_iono_sys(fp,"QZS",nav->ion_qzs,8);
-    }
-    if ((sys&opt->navsys&SYS_CMP)&&opt->rnxver>=302) {
-        out_iono_sys(fp,"BDS",nav->ion_cmp,8);
-    }
-    if ((sys&opt->navsys&SYS_IRN)&&opt->rnxver>=303) {
-        out_iono_sys(fp,"IRN",nav->ion_irn,8);
+	if (sys&opt->navsys&SYS_GPS) {
+		out_iono_sys4(fp,&nav->ion[TSYS_GPS]);
+	}
+	if (sys&opt->navsys&SYS_GAL) {
+		out_iono_sys4(fp,&nav->ion[TSYS_GAL]);
+	}
+	if (sys&opt->navsys&SYS_QZS) {
+		out_iono_sys4(fp,&nav->ion[TSYS_QZS]);
+	}
+	if (sys&opt->navsys&SYS_CMP) {
+		out_iono_sys4(fp,&nav->ion[TSYS_CMP]);
+	}
+    if (sys&opt->navsys&SYS_IRN) {
+		out_iono_sys4(fp,&nav->ion[TSYS_IRN]);
     }
 }
-/* output time system correction for a system --------------------------------*/
-static void out_time_sys(FILE *fp, const char *sys, const double *utc)
+/* detect src/dst of time system correction */
+static void detect_utc_src(const char *sys, int *src, int *dst)
 {
-    const char *label1="TIME SYSTEM CORR",*label2="DELTA-UTC: A0,A1,T,W";
-    
-    if (norm(utc,3)<=0.0) return;
-    
-    if (*sys) {
-        fprintf(fp,"%-4s ",sys);
-        outnavf_n(fp,utc[0],10);
-        outnavf_n(fp,utc[1],9);
-        fprintf(fp,"%7.0f%5.0f%10s%-20s\n",utc[2],utc[3],"",label1);
+    int i;
+    const char *sysid[]={"GP","UT","GL","GA","QZ","BD","IR","SB"};
+
+    *src=-1; /* unknown */
+    for (i=0;i<sizeof(src)/2;i++) {
+        if (strncmp(sys,sysid[i],2)==0) {
+            *src=TSYS_GPS+i;
+            break;
+        }
     }
-    else {
-        fprintf(fp,"   ");
-        outnavf_n(fp,utc[0],12);
-        outnavf_n(fp,utc[1],12);
-        fprintf(fp,"%9.0f%9.0f %-20s\n",utc[2],utc[3],label2);
+
+    *dst=-1; /* unknown */
+    for (i=0;i<sizeof(src)/2;i++) {
+        if (strncmp(sys+2,sysid[i],2)==0) {
+            *src=TSYS_GPS+i;
+            break;
+        }
     }
+}
+
+/* output time system correction for a system --------------------------------*/
+static void out_time_sys(FILE *fp, const char *sys, const sto_t *utc)
+{
+    int t,w,src,dst;
+	const char *label1="TIME SYSTEM CORR",*label2="DELTA-UTC: A0,A1,T,W";
+
+	if (norm(utc->a,3)<=0.0) return;
+    t=time2gpst(utc->t0,&w);
+	if (*sys) {
+        detect_utc_src(sys,&src,&dst);
+		fprintf(fp,"%-4s ",sys);
+		outnavf_n(fp,utc->a[0],10);
+		outnavf_n(fp,utc->a[1],9);
+		fprintf(fp,"%7.0f%5.0f%10s%-20s\n",t,w,"",label1);
+	}
+	else {
+		fprintf(fp,"    ");
+		outnavf_n(fp,utc->a[0],12);
+		outnavf_n(fp,utc->a[1],12);
+		fprintf(fp,"%9.0f%9.0f %-20s\n",t,w,label2);
+	}
 }
 /* output time system corrections --------------------------------------------*/
 static void out_time(FILE *fp, int sys, const rnxopt_t *opt, const nav_t *nav)
 {
-    double utc[8]={0};
 
-    if (!opt->outtime) return;
+	if (!opt->outtime) return;
 
-    if (sys&opt->navsys&SYS_GPS) {
-        if (opt->rnxver<=211) out_time_sys(fp,"",nav->utc_gps);
-        else out_time_sys(fp,"GPUT",nav->utc_gps);
-    }
-    if ((sys&opt->navsys&SYS_GLO)&&opt->rnxver>=212) {
-        /* RINEX 2.12-3.02: tau_C, 3.03- : -tau_C */
-        utc[0]=(opt->rnxver<=302)?nav->utc_glo[0]:-nav->utc_glo[0];
-        out_time_sys(fp,"GLUT",utc);
-    }
-    if ((sys&opt->navsys&SYS_SBS)&&opt->rnxver>=212) {
-        out_time_sys(fp,"SBUT",nav->utc_sbs);
-    }
-    if ((sys&opt->navsys&SYS_GAL)&&opt->rnxver>=212) {
-        out_time_sys(fp,"GAUT",nav->utc_gal);
-    }
-    if ((sys&opt->navsys&SYS_QZS)&&opt->rnxver>=302) {
-        out_time_sys(fp,"QZUT",nav->utc_qzs);
-    }
-    if ((sys&opt->navsys&SYS_CMP)&&opt->rnxver>=302) {
-        out_time_sys(fp,"BDUT",nav->utc_cmp);
-    }
-    if ((sys&opt->navsys&SYS_IRN)&&opt->rnxver>=303) {
-        out_time_sys(fp,"IRUT",nav->utc_irn);
-    }
+	if (sys&opt->navsys&SYS_GPS) {
+		if (opt->rnxver<=211) out_time_sys(fp,"",&nav->sto[TSYS_GPS]);
+		else out_time_sys(fp,"GPUT",&nav->sto[TSYS_GPS]);
+	}
+	if ((sys&opt->navsys&SYS_GLO)&&opt->rnxver>=212) {
+        sto_t utc;
+        utc=nav->sto[TSYS_GLO];
+		/* RINEX 2.12-3.02: tau_C, 3.03- : -tau_C */
+        if (opt->rnxver>302) utc.a[0]=-utc.a[0];
+		out_time_sys(fp,"GLUT",&utc);
+	}
+	if ((sys&opt->navsys&SYS_SBS)&&opt->rnxver>=212) {
+		out_time_sys(fp,"SBUT",&nav->sto[TSYS_SBS]);
+	}
+	if ((sys&opt->navsys&SYS_GAL)&&opt->rnxver>=212) {
+		out_time_sys(fp,"GAUT",&nav->sto[TSYS_GAL]);
+	}
+	if ((sys&opt->navsys&SYS_QZS)&&opt->rnxver>=302) {
+		out_time_sys(fp,"QZUT",&nav->sto[TSYS_QZS]);
+	}
+	if ((sys&opt->navsys&SYS_CMP)&&opt->rnxver>=302) {
+		out_time_sys(fp,"BDUT",&nav->sto[TSYS_CMP]);
+	}
+	if ((sys&opt->navsys&SYS_IRN)&&opt->rnxver>=303) {
+		out_time_sys(fp,"IRUT",&nav->sto[TSYS_IRN]);
+	}
 }
+/* output time system correction for a system (RINEX 4) --------------------------------*/
+static void out_time_sys4(FILE *fp, const char *sys, const sto_t *utc)
+{
+    int src,dst;
+	double ep[6];
+	const char *utc_id[]={"UTC(USNO)","","UTC(SU)","UTCGAL","UTC(NICT)",
+		"UTC(NTSC)","UTC(NPLI)","UTC(NIST)","UTC(OP)"};
+	const char *nav_id[]={"LNAV","","FDMA","IFNV","LNAV",
+		"D1D2","LNAV","SBAS"};
+	gtime_t tref;
+    char buff[4];
+
+	if (norm(utc->a,3)<=0.0) return;
+
+    detect_utc_src(sys,&src,&dst);
+
+    satno2id(utc->sat,buff);
+	fprintf(fp, "> STO %-3s %4s\n",buff,nav_id[src]);
+	if (src==TSYS_CMP) { /* BDUT */
+		tref=bdt2gpst(utc->t0);
+	}
+	else {
+		tref=utc->t0;
+	}
+	time2epoch(tref,ep);
+	fprintf(fp, "    %4.0f %2.0f %2.0f %2.0f %2.0f %2.0f %-18s %-18s %-18s\n",
+	    ep[0],ep[1],ep[2],ep[3],ep[4],ep[5],sys,"",utc_id[src]);
+	fprintf(fp,"    ");
+	outnavf(fp,time2gpst(utc->ttm,NULL));	/* t_tm  */
+	outnavf(fp,utc->a[0]); /* a0 */
+	outnavf(fp,utc->a[1]); /* a1 */
+	outnavf(fp,utc->a[2]); /* a2 */
+	fprintf(fp,"\n");
+}
+/* output time system corrections for RINEX 4 ------------------------------*/
+static int out_time4(FILE *fp, int sys, const rnxopt_t *opt, const nav_t *nav)
+{
+	int ret=0;
+
+	if (sys&opt->navsys&SYS_GPS) {
+		out_time_sys4(fp,"GPUT",&nav->sto[TSYS_GPS]);
+	}
+	if (sys&opt->navsys&SYS_GLO) {
+		out_time_sys4(fp,"GLUT",&nav->sto[TSYS_GLO]);
+	}
+	if (sys&opt->navsys&SYS_SBS) {
+		out_time_sys4(fp,"SBUT",&nav->sto[TSYS_UTC]);
+	}
+	if (sys&opt->navsys&SYS_GAL) {
+		out_time_sys4(fp,"GAUT",&nav->sto[TSYS_GAL]);
+	}
+	if (sys&opt->navsys&SYS_QZS) {
+		out_time_sys4(fp,"QZUT",&nav->sto[TSYS_QZS]);
+	}
+	if (sys&opt->navsys&SYS_CMP) {
+		out_time_sys4(fp,"BDUT",&nav->sto[TSYS_CMP]);
+	}
+	if (sys&opt->navsys&SYS_IRN) {
+		out_time_sys4(fp,"IRUT",&nav->sto[TSYS_IRN]);
+	}
+	return ret;
+}
+
 /* output leap seconds -------------------------------------------------------*/
 static void out_leaps(FILE *fp, int sys, const rnxopt_t *opt, const nav_t *nav)
 {
     const char *label="LEAP SECONDS";
-    const double *leaps;
+    double dt_ls=0.0;
+    const sto_t *utc=NULL;
+    int wn_lsf=0,dn=0;
 
     if (!opt->outleaps) return;
 
     switch (sys) {
-        case SYS_GAL: leaps=nav->utc_gal+4; break;
-        case SYS_QZS: leaps=nav->utc_qzs+4; break;
-        case SYS_CMP: leaps=nav->utc_cmp+4; break;
-        case SYS_IRN: leaps=nav->utc_irn+4; break;
-        default     : leaps=nav->utc_gps+4; break;
+        case SYS_GAL: utc=&nav->sto[TUTC_GAL]; break; 
+        case SYS_QZS: utc=&nav->sto[TUTC_QZS]; break;
+        case SYS_CMP: utc=&nav->sto[TUTC_CMP]; break;
+        case SYS_IRN: utc=&nav->sto[TUTC_IRN]; break;
+        default     : utc=&nav->sto[TUTC_GPS]; break;
     }
-    if (leaps[0]==0.0) return;
 
+    dt_ls=utc->dt_ls;
+    if (dt_ls==0.0) return;
+    dn=time2gpst(utc->tlsf,&wn_lsf)/86400;
+    
     if (opt->rnxver<=300) {
-        if (sys==SYS_GPS) fprintf(fp,"%6.0f%54s%-20s\n",leaps[0],"",label);
+        if (sys==SYS_GPS) fprintf(fp,"%6.0f%54s%-20s\n",dt_ls,"",label);
     }
-    else if (norm(leaps+1,3)<=0.0) {
-        fprintf(fp,"%6.0f%18s%3s%33s%-20s\n",leaps[0],"",
+    else if (utc->dt_lsf==0.0 && dn==0 && wn_lsf==0) {
+        fprintf(fp,"%6.0f%18s%3s%33s%-20s\n",dt_ls,"",
                 (sys==SYS_CMP)?"BDS":"","",label);
     }
     else {
-        fprintf(fp,"%6.0f%6.0f%6.0f%6.0f%3s%33s%-20s\n",leaps[0],
-                leaps[3],leaps[1],leaps[2],(sys==SYS_CMP)?"BDS":"","",label);
+        fprintf(fp,"%6.0f%6.0f%6.0f%6.0f%3s%33s%-20s\n",dt_ls,
+                utc->dt_lsf,wn_lsf,dn,(sys==SYS_CMP)?"BDS":"","",label);
     }
 }
 /* output RINEX navigation data file header ------------------------------------
@@ -2638,7 +2812,7 @@ static void out_leaps(FILE *fp, int sys, const rnxopt_t *opt, const nav_t *nav)
 *-----------------------------------------------------------------------------*/
 extern int outrnxnavh(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
 {
-    int i;
+    int i, ret=0;
     char date[64],*sys;
     
     trace(3,"outrnxnavh:\n");
@@ -2671,12 +2845,18 @@ extern int outrnxnavh(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
         fprintf(fp,"%-60.60s%-20s\n",opt->comment[i],"COMMENT");
     }
     if (opt->rnxver<400)  {
-        out_iono(fp,opt->sep_nav?SYS_GPS:SYS_ALL,opt,nav);
-        out_time(fp,opt->sep_nav?SYS_GPS:SYS_ALL,opt,nav);
-    }
-    out_leaps(fp,SYS_GPS,opt,nav);
-    
-    return fprintf(fp,"%60s%-20s\n","","END OF HEADER")!=EOF;
+		out_iono(fp,opt->sep_nav?SYS_GPS:SYS_ALL,opt,nav);
+		out_time(fp,opt->sep_nav?SYS_GPS:SYS_ALL,opt,nav);
+		out_leaps(fp,SYS_GPS,opt,nav);
+		return fprintf(fp,"%60s%-20s\n","","END OF HEADER")!=EOF;
+	}
+	else {
+		out_leaps(fp,SYS_GPS,opt,nav);
+		fprintf(fp,"%60s%-20s\n","","END OF HEADER");
+		out_iono4(fp,opt->sep_nav?SYS_GPS:SYS_ALL,opt,nav);
+		ret=out_time4(fp,opt->sep_nav?SYS_GPS:SYS_ALL,opt,nav);
+		return ret!=EOF;
+	}
 }
 
 static int detect_navid(int sys, int code, char ***navids)
@@ -2732,7 +2912,7 @@ extern int outrnxnavb(FILE *fp, const rnxopt_t *opt, const eph_t *eph)
         time2epoch(eph->toc,ep);
     }
     else {
-        time2epoch(gpst2bdt(eph->toc),ep); /* gpst -> bdt */
+		time2epoch(gpst2bdt(eph->toc),ep); /* gpst -> bdt */
     }
     if (opt->rnxver>=400) {
         if (!sat2code(eph->sat,code)) return 0;

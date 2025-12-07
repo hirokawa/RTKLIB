@@ -8,7 +8,7 @@ The development branch for RTKLIB 2.4.3.
 
 UPDATE HISTORY
 
-2014/09/07  2.4.3 b1  add 3-panel and veritical-panel modes for RTKNAVI
+2014/09/07  2.4.3 b1  add 3-panel and vertical-panel modes for RTKNAVI
                       add sky image overlay to skyplot for RTKPLOT
                       fix invalid identification of obs type "C2" (#113)
                       fix invalid format of saved image by RTKPLOT (#114)
@@ -116,9 +116,9 @@ UPDATE HISTORY
 2017/09/02  2.4.3 b29 fix bugs
 2018/10/10  2.4.3 b30 support u-blox zed-f9p
                       support api-key for gmview of rtkplot
-                      improve galileo sisa, i/nav and f/nav hadling
+                      improve galileo sisa, i/nav and f/nav handling
                       fix many bugs
-2018/11/05  2.4.3 b31 update rtcm mt for beidou ephemeirs (1047->1042)
+2018/11/05  2.4.3 b31 update rtcm mt for beidou ephemeris (1047->1042)
                       fix bug on default stream playback speed (= 0)
                       fix bug on stream file playback as slave mode
                       fix bug on timeset() in gpst instead of utc
@@ -142,7 +142,7 @@ UPDATE HISTORY
         RTCM 3.3 amendment-1 supported. MT1041/1131-7 (NavIC ephemeris/MSM) added.
         RTCM3 MT1230 (GLONASS code-phase biases) supported.
         RTCM3 MT4076 (IGS SSR) supported.
-        GNSS singal ID changed: L1,L2,L5/3,L6,L7,L8,L9 -> L1,L2,L3,L4,L5.
+        GNSS signal ID changed: L1,L2,L5/3,L6,L7,L8,L9 -> L1,L2,L3,L4,L5.
         Only Windows 64bit APs supported. 32bit APs deleted. 
         Windows scaled DPI APs supported for different DPI screens.
         Directories RTKLIB/app and RTKLIB/data reorganized.
@@ -208,11 +208,11 @@ UPDATE HISTORY
         RINEX NAV DT_LSF, WN_LSF and DN for LEAP SEC output supported.
         RINEX version check added to exclude unsupported systems and signals.
         Always two-pass processing. Option Scan Obs Types deleted.
-        Option Phase Shift added to align carrier phases to refernece signals.
+        Option Phase Shift added to align carrier phases to reference signals.
         Option GLONASS FCN added for receiver logs without FCN info like RTCM3 MSM4.
         Default receiver log time obtained from the time-tag file if it exists.
         Recursive new directory generation supported.
-        High resolution (16bit) C/N0 suppored.
+        High resolution (16bit) C/N0 supported.
         Switch of reference stations supported in a RTCM3 log file.
         Format GW10, CMR/CMR+ and TERSUS for receiver logs no longer supported. 
         RINEX 2.12 QZS extension no longer supported.
@@ -232,7 +232,7 @@ UPDATE HISTORY
         SP3-d format for precise ephemerides supported.
         CPU usage much improved in SD to DD conversion for ambiguity resolution.
         OpenBLAS linked instead of Intel MKL for fast-matrix computation.
-        Option QZSS LEX and Input STEC for ionos-correction no longer supported.
+        Option QZSS LEX and Input STEC for ionospheric-correction no longer supported.
         Option Input ZTD for troposphere correction no longer supported.
         AP RTKPOST_WIN64 and RTKPOST_MKL deleted.
     SRCTBLBROWS:

@@ -338,19 +338,6 @@ static int decode_eph(raw_t *raw, int sat)
     raw->ephset=0;
     return 2;
 }
-/* UTC 8-bit week -> full week -----------------------------------------------*/
-static void adj_utcweek(gtime_t time, double *utc)
-{
-    int week;
-    
-    time2gpst(time,&week);
-    utc[3]+=week/256*256;
-    if      (utc[3]<week-127) utc[3]+=256.0;
-    else if (utc[3]>week+127) utc[3]-=256.0;
-    utc[5]+=utc[3]/256*256;
-    if      (utc[5]<utc[3]-127) utc[5]+=256.0;
-    else if (utc[5]>utc[3]+127) utc[5]-=256.0;
-}
 /* decode ION/UTC parameters -------------------------------------------------*/
 static int decode_ionutc(raw_t *raw, int sat)
 {
@@ -360,13 +347,13 @@ static int decode_ionutc(raw_t *raw, int sat)
     if (!decode_frame(raw->subfrm[sat-1],NULL,NULL,ion,utc)) return 0;
     
     adj_utcweek(raw->time,utc);
-    if (sys==SYS_QZS) {
-        matcpy(raw->nav.ion_qzs,ion,8,1);
-        matcpy(raw->nav.utc_qzs,utc,8,1);
+	if (sys==SYS_QZS) {
+		set_ion_param(raw,sat,NAV_QZS_LNAV,ion);
+		set_utc_param(raw,sat,NAV_QZS_LNAV,utc);
     }
-    else {
-        matcpy(raw->nav.ion_gps,ion,8,1);
-        matcpy(raw->nav.utc_gps,utc,8,1);
+	else {
+		set_ion_param(raw,sat,NAV_GPS_LNAV,ion);
+		set_utc_param(raw,sat,NAV_GPS_LNAV,utc);
     }
     return 1;
 }
@@ -462,7 +449,8 @@ static int decode_glorawca(raw_t *raw)
     geph.tof=raw->time;
     if (!decode_glostr(raw->subfrm[sat-1],&geph,utc)) return 0;
     
-    matcpy(raw->nav.utc_glo,utc,8,1);
+	/*matcpy(raw->nav.utc_glo,utc,8,1);*/
+    set_utc_param(raw,sat,NAV_GLO_FDMA,utc);
 
     if (geph.sat!=sat) {
         trace(2,"sbf glorawca satellite error: sat=%d %d\n",sat,geph.sat);
@@ -533,9 +521,9 @@ static int decode_galrawfnav(raw_t *raw)
     }
     eph.code|=(1<<1); /* data source: E5a */
     
-    adj_utcweek(raw->time,utc);
-    matcpy(raw->nav.ion_gal,ion,4,1);
-    matcpy(raw->nav.utc_gal,utc,8,1);
+	adj_utcweek(raw->time,utc);
+	set_ion_param(raw,sat,NAV_GAL_FNAV,ion);
+	set_utc_param(raw,sat,NAV_GAL_FNAV,utc);
     
     if (!strstr(raw->opt,"-EPHALL")) {
         if (eph.iode==raw->nav.eph[sat-1+MAXSAT].iode&&
@@ -614,10 +602,10 @@ static int decode_galrawinav(raw_t *raw)
     }
     eph.code|=(src==17)?(1<<0):(1<<2); /* data source: E1 or E5b */
     
-    adj_utcweek(raw->time,utc);
-    matcpy(raw->nav.ion_gal,ion,4,1);
-    matcpy(raw->nav.utc_gal,utc,8,1);
-    
+	adj_utcweek(raw->time,utc);
+	set_ion_param(raw,sat,NAV_GAL_INAV,ion);
+	set_utc_param(raw,sat,NAV_GAL_INAV,utc);
+
     if (!strstr(raw->opt,"-EPHALL")) {
         if (eph.iode==raw->nav.eph[sat-1].iode&&
             timediff(eph.toe,raw->nav.eph[sat-1].toe)==0.0&&
@@ -699,9 +687,9 @@ static int decode_bdsraw(raw_t *raw)
             if (!decode_bds_d1(raw->subfrm[sat-1],&eph,NULL,NULL)) return 0;
         }
         else if (id==5) {
-            if (!decode_bds_d1(raw->subfrm[sat-1],NULL,ion,utc)) return 0;
-            matcpy(raw->nav.ion_cmp,ion,8,1);
-            matcpy(raw->nav.utc_cmp,utc,8,1);
+			if (!decode_bds_d1(raw->subfrm[sat-1],NULL,ion,utc)) return 0;
+			set_ion_param(raw,sat,NAV_BDS_D1,ion);
+			set_utc_param(raw,sat,NAV_BDS_D1,utc);
             return 9;
         }
         else return 0;
@@ -717,7 +705,7 @@ static int decode_bdsraw(raw_t *raw)
         else if (id==1&&pgn==102) {
             memcpy(raw->subfrm[sat-1]+10*38,buff,38);
             if (!decode_bds_d2(raw->subfrm[sat-1],NULL,utc)) return 0;
-            matcpy(raw->nav.utc_cmp,utc,8,1);
+			set_utc_param(raw,sat,NAV_BDS_D2,utc);
             return 9;
         }
         else return 0;
@@ -784,12 +772,12 @@ static int decode_navicraw(raw_t *raw)
     }
     else if (id==2||id==3) { /* subframe 3 or 4 */
         if (decode_irn_nav(raw->subfrm[sat-1],NULL,ion,NULL)) {
-            matcpy(raw->nav.ion_irn,ion,8,1);
+            set_ion_param(raw,sat,NAV_IRN_L1NV,ion);
             ret=9;
         }
         if (decode_irn_nav(raw->subfrm[sat-1],NULL,NULL,utc)) {
             adj_utcweek(raw->time,utc);
-            matcpy(raw->nav.utc_irn,utc,9,1);
+            set_ion_param(raw,sat,NAV_IRN_L1NV,utc);
             ret=9;
         }
         memset(raw->subfrm[sat-1]+id*37,0,37);

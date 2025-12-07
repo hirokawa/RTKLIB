@@ -314,7 +314,8 @@ static int decode_creseph(raw_t *raw)
 static int decode_cresionutc(raw_t *raw)
 {
     int i;
-    uint8_t *p=raw->buff+8;
+	uint8_t *p=raw->buff+8;
+	double ion_gps[8],utc_gps[8];
     
     trace(4,"decode_cresionutc: len=%d\n",raw->len);
     
@@ -322,13 +323,16 @@ static int decode_cresionutc(raw_t *raw)
         trace(2,"crescent bin 94 message length error: len=%d\n",raw->len);
         return -1;
     }
-    for (i=0;i<8;i++) raw->nav.ion_gps[i]=R8(p+i*8);
-    raw->nav.utc_gps[0]=R8(p+64);
-    raw->nav.utc_gps[1]=R8(p+72);
-    raw->nav.utc_gps[2]=(double)U4(p+80);
-    raw->nav.utc_gps[3]=(double)U2(p+84);
-    raw->nav.utc_gps[4]=I2(p+90);
-    return 9;
+	for (i=0;i<8;i++) ion_gps[i]=R8(p+i*8);
+	utc_gps[0]=R8(p+64);
+	utc_gps[1]=R8(p+72);
+	utc_gps[2]=(double)U4(p+80);
+	utc_gps[3]=(double)U2(p+84);
+	utc_gps[4]=I2(p+90);
+
+    set_ion_param(raw,1,NAV_GPS_LNAV,ion_gps);
+    set_utc_param(raw,1,NAV_GPS_LNAV,utc_gps);
+	return 9;
 }
 /* decode bin 80 waas messages -----------------------------------------------*/
 static int decode_creswaas(raw_t *raw)

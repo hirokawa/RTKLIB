@@ -151,19 +151,6 @@ static gtime_t adjweek(gtime_t time, double tow)
     else if (tow>tow_p+302400.0) tow-=604800.0;
     return gpst2time(week,tow);
 }
-/* UTC 8-bit week -> full week -----------------------------------------------*/
-static void adj_utcweek(gtime_t time, double *utc)
-{
-    int week;
-    
-    time2gpst(time,&week);
-    utc[3]+=week/256*256;
-    if      (utc[3]<week-127) utc[3]+=256.0;
-    else if (utc[3]>week+127) utc[3]-=256.0;
-    utc[5]+=utc[3]/256*256;
-    if      (utc[5]<utc[3]-127) utc[5]+=256.0;
-    else if (utc[5]>utc[3]+127) utc[5]-=256.0;
-}
 /* get observation data index ------------------------------------------------*/
 static int obsindex(obs_t *obs, gtime_t time, int sat)
 {
@@ -561,21 +548,25 @@ static int decode_rawephemb(raw_t *raw)
 static int decode_ionutcb(raw_t *raw)
 {
     uint8_t *p=raw->buff+OEM4HLEN;
-    int i;
+	int i;
+    double ion_gps[8],utc_gps[8];
     
     if (raw->len<OEM4HLEN+108) {
         trace(2,"oem4 ionutcb length error: len=%d\n",raw->len);
         return -1;
     }
-    for (i=0;i<8;i++) raw->nav.ion_gps[i]=R8(p+i*8);
-    raw->nav.utc_gps[0]=R8(p+ 72); /* A0 */
-    raw->nav.utc_gps[1]=R8(p+ 80); /* A1 */
-    raw->nav.utc_gps[2]=U4(p+ 68); /* tot */
-    raw->nav.utc_gps[3]=U4(p+ 64); /* WNt */
-    raw->nav.utc_gps[4]=I4(p+ 96); /* dt_LS */
-    raw->nav.utc_gps[5]=U4(p+ 88); /* WN_LSF */
-    raw->nav.utc_gps[6]=U4(p+ 92); /* DN */
-    raw->nav.utc_gps[7]=I4(p+100); /* dt_LSF */
+	for (i=0;i<8;i++) ion_gps[i]=R8(p+i*8);
+	utc_gps[0]=R8(p+ 72); /* A0 */
+	utc_gps[1]=R8(p+ 80); /* A1 */
+	utc_gps[2]=U4(p+ 68); /* tot */
+	utc_gps[3]=U4(p+ 64); /* WNt */
+	utc_gps[4]=I4(p+ 96); /* dt_LS */
+	utc_gps[5]=U4(p+ 88); /* WN_LSF */
+	utc_gps[6]=U4(p+ 92); /* DN */
+	utc_gps[7]=I4(p+100); /* dt_LSF */
+
+    set_ion_param(raw,1,NAV_GPS_LNAV,ion_gps);
+    set_utc_param(raw,1,NAV_GPS_LNAV,utc_gps);
     return 9;
 }
 /* decode RAWWAASFRAMEB ------------------------------------------------------*/
@@ -739,9 +730,9 @@ static int decode_qzssrawsubframeb(raw_t *raw)
     }
     else if (id==4||id==5) {
         if (!decode_frame(raw->subfrm[sat-1],NULL,NULL,ion,utc)) return 0;
-        adj_utcweek(raw->time,utc);
-        matcpy(raw->nav.ion_qzs,ion,8,1);
-        matcpy(raw->nav.utc_qzs,utc,8,1);
+		adj_utcweek(raw->time,utc);
+        set_ion_param(raw,sat,NAV_QZS_LNAV,ion);
+        set_utc_param(raw,sat,NAV_QZS_LNAV,utc);
         return 9;
     }
     return 0;
@@ -750,19 +741,22 @@ static int decode_qzssrawsubframeb(raw_t *raw)
 static int decode_qzssionutcb(raw_t *raw)
 {
     uint8_t *p=raw->buff+OEM4HLEN;
-    int i;
+	int i,sat=satno(SYS_QZS,193);
+    double ion_qzs[8],utc_qzs[8];
     
     if (raw->len<OEM4HLEN+108) {
         trace(2,"oem4 qzssionutcb length error: len=%d\n",raw->len);
         return -1;
     }
-    for (i=0;i<8;i++) raw->nav.ion_qzs[i]=R8(p+i*8);
-    raw->nav.utc_qzs[0]=R8(p+72);
-    raw->nav.utc_qzs[1]=R8(p+80);
-    raw->nav.utc_qzs[2]=U4(p+68);
-    raw->nav.utc_qzs[3]=U4(p+64);
-    raw->nav.utc_qzs[4]=I4(p+96);
-    return 9;
+	for (i=0;i<8;i++) ion_qzs[i]=R8(p+i*8);
+	utc_qzs[0]=R8(p+72);
+	utc_qzs[1]=R8(p+80);
+	utc_qzs[2]=U4(p+68);
+	utc_qzs[3]=U4(p+64);
+	utc_qzs[4]=I4(p+96);
+    set_ion_param(raw,sat,NAV_QZS_LNAV,ion_qzs);
+    set_utc_param(raw,sat,NAV_QZS_LNAV,utc_qzs);
+	return 9;
 }
 /* decode GALEPHEMERISB ------------------------------------------------------*/
 static int decode_galephemerisb(raw_t *raw)
@@ -866,7 +860,8 @@ static int decode_galclockb(raw_t *raw)
 {
     uint8_t *p=raw->buff+OEM4HLEN;
     double a0,a1,a0g,a1g;
-    int dtls,tot,wnt,wnlsf,dn,dtlsf,t0g,wn0g;
+	int dtls,tot,wnt,wnlsf,dn,dtlsf,t0g,wn0g,sat=satno(SYS_GAL,1);
+    double utc_gal[8];
     
     if (raw->len<OEM4HLEN+64) {
         trace(2,"oem4 galclockb length error: len=%d\n",raw->len);
@@ -884,22 +879,23 @@ static int decode_galclockb(raw_t *raw)
     a1g  =R8(p); p+=8;
     t0g  =U4(p); p+=4;
     wn0g =U4(p);
-    raw->nav.utc_gal[0]=a0;
-    raw->nav.utc_gal[1]=a1;
-    raw->nav.utc_gal[2]=tot;
-    raw->nav.utc_gal[3]=wnt;
-    raw->nav.utc_gal[4]=dtls;
-    raw->nav.utc_gal[5]=wnlsf;
-    raw->nav.utc_gal[6]=dn;
-    raw->nav.utc_gal[7]=dtlsf;
+	utc_gal[0]=a0;
+	utc_gal[1]=a1;
+	utc_gal[2]=tot;
+	utc_gal[3]=wnt;
+	utc_gal[4]=dtls;
+	utc_gal[5]=wnlsf;
+	utc_gal[6]=dn;
+	utc_gal[7]=dtlsf;
+    set_utc_param(raw,sat,NAV_GAL_INAV,utc_gal);
     return 9;
 }
 /* decode GALIONOB -----------------------------------------------------------*/
 static int decode_galionob(raw_t *raw)
 {
     uint8_t *p=raw->buff+OEM4HLEN;
-    double ai[3];
-    int i,sf[5];
+    double ai[3],ion_gal[8];
+    int i,sf[5],sat=satno(SYS_GAL,1);
     
     if (raw->len<OEM4HLEN+29) {
         trace(2,"oem4 galionob length error: len=%d\n",raw->len);
@@ -914,7 +910,8 @@ static int decode_galionob(raw_t *raw)
     sf[3]=U1(p); p+=1;
     sf[4]=U1(p);
     
-    for (i=0;i<3;i++) raw->nav.ion_gal[i]=ai[i];
+	for (i=0;i<3;i++) ion_gal[i]=ai[i];
+    set_ion_param(raw,sat,NAV_GAL_INAV,ion_gal);
     return 9;
 }
 /* decode BDSEPHEMERISB ------------------------------------------------------*/
@@ -1238,29 +1235,33 @@ static int decode_frmb(raw_t *raw)
 static int decode_ionb(raw_t *raw)
 {
     uint8_t *p=raw->buff+OEM3HLEN;
-    int i;
+	int i;
+    double ion_gps[8];
     
     if (raw->len!=64+OEM3HLEN) {
         trace(2,"oem3 ionb length error: len=%d\n",raw->len);
         return -1;
     }
-    for (i=0;i<8;i++) raw->nav.ion_gps[i]=R8(p+i*8);
+	for (i=0;i<8;i++) ion_gps[i]=R8(p+i*8);
+    set_ion_param(raw,1,NAV_GPS_LNAV,ion_gps);
     return 9;
 }
 /* decode UTCB ---------------------------------------------------------------*/
 static int decode_utcb(raw_t *raw)
 {
-    uint8_t *p=raw->buff+OEM3HLEN;
+	uint8_t *p=raw->buff+OEM3HLEN;
+    double utc_gps[8];
     
     if (raw->len!=40+OEM3HLEN) {
         trace(2,"oem3 utcb length error: len=%d\n",raw->len);
         return -1;
     }
-    raw->nav.utc_gps[0]=R8(p   );
-    raw->nav.utc_gps[1]=R8(p+ 8);
-    raw->nav.utc_gps[2]=U4(p+16);
-    raw->nav.utc_gps[3]=adjgpsweek(U4(p+20));
-    raw->nav.utc_gps[4]=I4(p+28);
+	utc_gps[0]=R8(p   );
+	utc_gps[1]=R8(p+ 8);
+	utc_gps[2]=U4(p+16);
+	utc_gps[3]=adjgpsweek(U4(p+20));
+	utc_gps[4]=I4(p+28);
+	set_utc_param(raw,1,NAV_GPS_LNAV,utc_gps);
     return 9;
 }
 /* decode NovAtel OEM4/V/6/7 message -----------------------------------------*/

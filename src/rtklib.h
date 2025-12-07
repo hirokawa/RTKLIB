@@ -125,6 +125,41 @@ extern "C" {
 #define TSYS_QZS    4                   /* time system: QZSS time */
 #define TSYS_CMP    5                   /* time system: BeiDou time */
 #define TSYS_IRN    6                   /* time system: IRNSS time */
+#define TSYS_SBS    7                   /* time system: SBAS time */ 
+
+#ifndef NTSYS
+#define NTSYS       8                   /* number of time system */
+#endif
+
+#define TUTC_GPS    0                   /* UTC time system: USNO */
+#define TUTC_GLO    1                   /* UTC time system: UTC(SU) */
+#define TUTC_GAL    2                   /* UTC time system: Galileo */
+#define TUTC_QZS    3                   /* UTC time system: NICT */
+#define TUTC_CMP    4                   /* UTC time system: NTSC */
+#define TUTC_IRN    5                   /* UTC time system: UTCIRN/UTC(NPLI) */
+#define TUTC_NIST   6                   /* UTC time system: UTC(NIST) */
+#define TUTC_OP     7                   /* UTC time system: UTC(OP) */
+
+#ifndef NTUTC
+#define NTUTC       8                   /* number of UTC time system */
+#endif
+
+#define ION_GPS_LNAV_KLOB   0           /* Ionospheric delay model: GPS LNAV Klobuchar */
+#define ION_GPS_CNVX_KLOB   1           /* Ionospheric delay model: GPS CNAV1/2 Klobuchar */
+#define ION_GAL_IFNV_NEQN   2           /* Ionospheric delay model: GAL I/FNAV NeQuick */
+#define ION_CMP_D1D2_KLOB   3           /* Ionospheric delay model: BDS D1/D2 Klobuchar */
+#define ION_CMP_CNVX_BDGIM  4           /* Ionospheric delay model: BDS BDGIM */
+#define ION_GLO_LXOC_CDMA   5           /* Ionospheric delay model: GLONASS CDMA */
+#define ION_QZS_LNAV_KLOB   6           /* Ionospheric delay model: QZS LNAV Klobuchar wide */
+#define ION_QZS_CNVX_KLOB   7           /* Ionospheric delay model: QZS CNVX Klobuchar wide */
+#define ION_QZS_LNAV_KLOBL  8           /* Ionospheric delay model: QZS LNAV Klobuchar local */
+#define ION_QZS_CNVX_KLOBL  9           /* Ionospheric delay model: QZS CNVX Klobuchar local */
+#define ION_IRN_L1NV_KLOB   10          /* Ionospheric delay model: NavIC L1NAV Klobuchar  */
+#define ION_IRN_L1NV_NEQN   11          /* Ionospheric delay model: NavIC L1NAV NeQuick-N */
+
+#ifndef NION
+#define NION       12                     /* number of iono model */
+#endif
 
 #ifndef NFREQ
 #define NFREQ       3                   /* number of carrier frequencies */
@@ -486,6 +521,28 @@ extern "C" {
 #define LLI_HALFA   0x40                /* LLI: half-cycle added */
 #define LLI_HALFS   0x80                /* LLI: half-cycle subtracted */
 
+#define NAV_GPS_LNAV    0               /* Navigation message format GPS LNAV */
+#define NAV_GPS_CNAV    1               /* Navigation message format GPS CNAV */
+#define NAV_GPS_CNAV2   2               /* Navigation message format GPS CNAV/2 */
+#define NAV_GAL_INAV    0               /* Navigation message format GAL INAV */
+#define NAV_GAL_FNAV    1               /* Navigation message format GAL FNAV */
+#define NAV_GAL_CNAV    2               /* Navigation message format GAL CNAV */
+#define NAV_GLO_FDMA    0               /* Navigation message format GLO FDMA */
+#define NAV_GLO_L1OC    1               /* Navigation message format GLO L1OC */
+#define NAV_GLO_L3OC    3               /* Navigation message format GLO L3OC */
+#define NAV_QZS_LNAV    0               /* Navigation message format QZS LNAV */
+#define NAV_QZS_CNAV    1               /* Navigation message format QZS CNAV */
+#define NAV_QZS_CNAV2   2               /* Navigation message format QZS CNAV/2 */
+#define NAV_BDS_D1      0               /* Navigation message format BDS D1 */
+#define NAV_BDS_D2      1               /* Navigation message format BDS D2 */
+#define NAV_BDS_CNAV1   2               /* Navigation message format BDS CNAV1 */
+#define NAV_BDS_CNAV2   3               /* Navigation message format BDS CNAV2 */
+#define NAV_BDS_CNAV3   4               /* Navigation message format BDS CNAV3 */
+#define NAV_IRN_LNAV    0               /* Navigation message format IRN LNAV */
+#define NAV_IRN_L1NV    1               /* Navigation message format IRN L1NAV */
+#define NAV_SBS_L1NV    0               /* Navigation message format SBAS L1 */
+#define NAV_SBS_L5NV    1               /* Navigation message format SBAS L5 */
+
 #define P2_5        0.03125             /* 2^-5 */
 #define P2_6        0.015625            /* 2^-6 */
 #define P2_11       4.882812500000000E-04 /* 2^-11 */
@@ -550,6 +607,15 @@ typedef struct {        /* observation data */
     obsd_t *data;       /* observation data records */
 } obs_t;
 
+typedef struct {        /* earth orientation parameter data type */
+    int sat;            /* source satellite */
+    int type;           /* type of EOP 0:LNAV,1:CNVX */
+    gtime_t t0;         /* reference epoch of EOP data */
+    gtime_t ttm;        /* transmission time of message */
+    double xp[3],yp[3]; /* pole offset (rad,rad/day,rad/day^2) */
+    double dut1[3];     /* ut1-utc (s,s/day,s/day^2) */
+} eop_t;
+
 typedef struct {        /* earth rotation parameter data type */
     double mjd;         /* mjd (days) */
     double xp,yp;       /* pole offset (rad) */
@@ -595,15 +661,17 @@ typedef struct {        /* GPS/QZS/GAL broadcast ephemeris type */
     int iode,iodc;      /* IODE,IODC */
     int sva;            /* SV accuracy (URA index) */
     int urai[5];        /* URA index array:
-                            GPS/QZS: urai[0]=URAI NED0,urai[1]=URAI NED1,urai[2]=URAI NED2,urai[3]=URAI ED
+                            GPS/QZS: URAI NED0,URAI NED1,URAI NED2,URAI ED
                          */
     int svh;            /* SV health (0:ok) */
     int week;           /* GPS/QZS: gps week, GAL: galileo week */
-    int code;           /* GPS/QZS: code on L2 */
+	int code;           /* GPS/QZS: code on L2 */
+    int src;            /* GPS/QZS: data source */
                         /* GAL: data source defined as rinex 3.03 */
                         /* BDS: data source (0:unknown,1:B1I,2:B1Q,3:B2I,4:B2Q,5:B3I,6:B3Q) */
     int flag;           /* GPS/QZS: L2 P data flag */
-                        /* BDS: nav type (0:unknown,1:IGSO/MEO,2:GEO) */
+						/* BDS: nav type (0:unknown,1:IGSO/MEO,2:GEO) */
+    int integ;          /* integrity flag as defined in RINEX 4.02 */
     gtime_t toe,toc,ttr,top; /* Toe,Toc,T_trans,top */
                         /* SV orbit parameters */
     double A,e,i0,OMG0,omg,M0,deln,OMGd,idot;
@@ -612,11 +680,11 @@ typedef struct {        /* GPS/QZS/GAL broadcast ephemeris type */
     double fit;         /* fit interval (h) */
     double f0,f1,f2;    /* SV clock parameters (af0,af1,af2) */
     double tgd[7];      /* group delay parameters */
-                        /* GPS/QZS:tgd[0]=TGD,tgd[1]=ISC_L1CA,tgd[2]=ISC_L2C,tgd[3]=ISC_L5I5,
-                                   tgd[4]=ISC_L5Q5,tgd[5]=ISC_L1CD,tgd[6]=ISC_L1CP */
-                        /* GAL:tgd[0]=BGD_E1E5a,tgd[1]=BGD_E1E5b */
-                        /* CMP:tgd[0]=TGD_B1I ,tgd[1]=TGD_B2I/B2b,tgd[2]=TGD_B1Cp */
-                        /*     tgd[3]=TGD_B2ap,tgd[4]=ISC_B1Cd   ,tgd[5]=ISC_B2ad */
+						/* GPS/QZS:TGD,ISC_L1CA,ISC_L2C,ISC_L5I5,
+								   ISC_L5Q5,ISC_L1CD,ISC_L1CP
+						   GAL:BGD_E1E5a,BGD_E1E5b
+						   CMP:TGD_B1I,TGD_B2I/B2b,TGD_B1Cp,
+                               TGD_B2ap,ISC_B1Cd,ISC_B2ad */
     double Adot,ndot;   /* Adot,ndot for CNAV */
 } eph_t;
 
@@ -765,6 +833,20 @@ typedef struct {        /* SBAS ionospheric corrections type */
     sbsigp_t igp[MAXNIGP]; /* ionospheric correction */
 } sbsion_t;
 
+typedef struct {        /* system time offset, leapsec parameters */
+	int sat;            /* source satellite number/system */
+	int navtype;        /* type of navigation message */
+	int src;            /* source time ststem */
+	int dst;            /* destination time system */
+	int utcid;          /* UTC ID */
+	gtime_t t0;         /* reference time */
+	gtime_t ttm;        /* transmission time */
+	int dt_ls;          /* leapsec */
+	int dt_lsf;         /* leapsec after transition */
+	gtime_t tlsf;       /* transition time of leapsec */
+	double a[3];        /* GGTO offset [s,s/s,s/s^2] */
+} sto_t;
+
 typedef struct {        /* DGPS/GNSS correction type */
     gtime_t t0;         /* correction time */
     double prc;         /* pseudorange correction (PRC) (m) */
@@ -772,6 +854,27 @@ typedef struct {        /* DGPS/GNSS correction type */
     int iod;            /* issue of data (IOD) */
     double udre;        /* UDRE */
 } dgps_t;
+
+typedef struct {        /* ionospheric delay model parameters */
+	int sat;            /* satellite number */
+    int navtype;        /* navitatyion type */
+	int zone;           /* global:0, local: 1 */
+	gtime_t ttm;        /* transmission time */
+	int idf[3];         /* Ionospheric disturbance flags (IDF) */
+	double d[12];       /* Klobuchar: alp0,alp1,alp2,alp3,bet0,bet1,bet2,bet3
+						   NEQUICK-G: ai0,ai1,ai2,IDF
+						   BDGIM: alp1,alp2,alp3,...,alp9
+						   NavIC L1NV Klobuchar: alp0,...,alp3,bet0,...,bet3
+                                                 long-min,long-max,lat-min,lat-max
+						   NavIC L1NV NEQUICK-N: a0,a1,a2,IDF (region 1)
+												 long-min,long-max,MOPID-min,MOPID-max
+                                                 a0,a1,a2,IDF (region 2)
+												 long-min,long-max,MOPID-min,MOPID-max
+                                                 a0,a1,a2,IDF (region 3)
+												 long-min,long-max,MOPID-min,MOPID-max
+                           GLO CDMA              c_A,c_F10.7,c_Ap
+						 */
+} ion_t;
 
 typedef struct {        /* SSR correction type */
     gtime_t t0[6];      /* epoch time (GPST) {eph,clk,hrclk,ura,bias,pbias} */
@@ -807,27 +910,32 @@ typedef struct {        /* navigation data type */
     pclk_t *pclk;       /* precise clock */
     alm_t *alm;         /* almanac data */
     tec_t *tec;         /* tec grid data */
-    erp_t  erp;         /* earth rotation parameters */
-    double utc_gps[8];  /* GPS delta-UTC parameters {A0,A1,Tot,WNt,dt_LS,WN_LSF,DN,dt_LSF} */
-    double utc_glo[8];  /* GLONASS UTC time parameters {tau_C,tau_GPS} */
-    double utc_gal[8];  /* Galileo UTC parameters */
-    double utc_qzs[8];  /* QZS UTC parameters */
-    double utc_cmp[8];  /* BeiDou UTC parameters */
-    double utc_irn[9];  /* IRNSS UTC parameters {A0,A1,Tot,...,dt_LSF,A2} */
-    double utc_sbs[4];  /* SBAS UTC parameters */
-    double ion_gps[8];  /* GPS iono model parameters {a0,a1,a2,a3,b0,b1,b2,b3} */
-    double ion_gal[4];  /* Galileo iono model parameters {ai0,ai1,ai2,0} */
-    double ion_qzs[8];  /* QZSS iono model parameters {a0,a1,a2,a3,b0,b1,b2,b3} */
-    double ion_cmp[8];  /* BeiDou iono model parameters {a0,a1,a2,a3,b0,b1,b2,b3} */
-    double ion_irn[8];  /* IRNSS iono model parameters {a0,a1,a2,a3,b0,b1,b2,b3} */
-    int glo_fcn[32];    /* GLONASS FCN + 8 */
+	erp_t  erp;         /* earth rotation parameters */
+	ion_t ion[NION];    /* Ionospheric delay parameter */
+	sto_t sto[NTSYS];   /* System Time Offset parameters */
+	eop_t eop[NTSYS];   /* earth orientation parameters */
+#if 0
+	double utc_gps[8];  /* GPS delta-UTC parameters {A0,A1,Tot,WNt,dt_LS,WN_LSF,DN,dt_LSF} */
+	double utc_glo[8];  /* GLONASS UTC time parameters {tau_C,tau_GPS} */
+	double utc_gal[8];  /* Galileo UTC parameters */
+	double utc_qzs[8];  /* QZS UTC parameters */
+	double utc_cmp[8];  /* BeiDou UTC parameters */
+	double utc_irn[9];  /* IRNSS UTC parameters {A0,A1,Tot,...,dt_LSF,A2} */
+	double utc_sbs[4];  /* SBAS UTC parameters */
+#endif
+	int glo_fcn[32];    /* GLONASS FCN + 8 */
     double cbias[MAXSAT][3]; /* satellite DCB (0:P1-P2,1:P1-C1,2:P2-C2) (m) */
     double rbias[MAXRCV][2][3]; /* receiver DCB (0:P1-P2,1:P1-C1,2:P2-C2) (m) */
     pcv_t pcvs[MAXSAT]; /* satellite antenna pcv */
     sbssat_t sbssat;    /* SBAS satellite corrections */
     sbsion_t sbsion[MAXBAND+1]; /* SBAS ionosphere corrections */
     dgps_t dgps[MAXSAT]; /* DGPS corrections */
-    ssr_t ssr[MAXSAT];  /* SSR corrections */
+	ssr_t ssr[MAXSAT];  /* SSR corrections */
+
+	gtime_t tm_utc[NTSYS]; /*  */
+	gtime_t tm_ion[NTSYS]; /*  */
+	int sat_utc[NTSYS];
+	int sat_ion[NTSYS];
 } nav_t;
 
 typedef struct {        /* station parameter type */
@@ -1560,6 +1668,9 @@ EXPORT int decode_gal_fnav(const uint8_t *buff, eph_t *eph, double *ion,
                            double *utc);
 EXPORT int decode_irn_nav(const uint8_t *buff, eph_t *eph, double *ion,
                           double *utc);
+EXPORT void adj_utcweek(gtime_t time, double *utc);
+EXPORT void set_ion_param(raw_t *raw, int sat, int navtype, double *ion);
+EXPORT void set_utc_param(raw_t *raw, int sat, int navtype, double *utc);
 
 EXPORT int init_raw   (raw_t *raw, int format);
 EXPORT void free_raw  (raw_t *raw);
