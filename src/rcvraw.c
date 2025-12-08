@@ -901,7 +901,7 @@ static int decode_glostr_eph(const uint8_t *buff, geph_t *geph)
 {
     geph_t geph_glo={0};
     double tow,tod,tof,toe;
-    int P,P1,P2,P3,P4,tk_h,tk_m,tk_s,tb,ln,NT,slot,M,week;
+    int P,P1,P2,P3,P4,tk_h,tk_m,tk_s,tb,ln,NT,slot,M,week,FT;
     int i=1,frn1,frn2,frn3,frn4;
     
     trace(4,"decode_glostr_eph:\n");
@@ -939,13 +939,16 @@ static int decode_glostr_eph(const uint8_t *buff, geph_t *geph)
     frn4           =getbitu(buff,i, 4);           i+= 4;
     geph_glo.taun  =getbitg(buff,i,22)*P2_30;     i+=22;
     geph_glo.dtaun =getbitg(buff,i, 5)*P2_30;     i+= 5;
-    geph_glo.age   =getbitu(buff,i, 5);           i+= 5+14;
+    geph_glo.age   =getbitu(buff,i, 5);           i+= 5+14; /* En */
     P4             =getbitu(buff,i, 1);           i+= 1;
     geph_glo.sva   =getbitu(buff,i, 4);           i+= 4+3;
     NT             =getbitu(buff,i,11);           i+=11;
     slot           =getbitu(buff,i, 5);           i+= 5;
     M              =getbitu(buff,i, 2);
-    
+
+    geph_glo.health=(ln<<2);
+    geph_glo.flag=(M<<7)|(P4<<6)|(P3<<5)|(P2<<4)|(P1<<2)|P;
+
     if (frn1!=1||frn2!=2||frn3!=3||frn4!=4) {
         trace(3,"decode_glostr error: frn=%d %d %d %d %d\n",frn1,frn2,frn3,
               frn4);
@@ -1541,6 +1544,7 @@ extern void set_utc_param(raw_t *raw, int sat, int navtype, double *utc)
 	}
 
 	sto=&raw->nav.sto[tsys];
+    sto->sat=sat;
     sto->src=tsys;
     sto->dst=TSYS_UTC;
 	sto->a[0]=utc[0];

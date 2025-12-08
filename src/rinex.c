@@ -2563,7 +2563,6 @@ static void out_iono(FILE *fp, int sys, const rnxopt_t *opt, const nav_t *nav)
 /* output iono correction for a system (RINEX v4)-------------------------------*/
 static void out_iono_sys4(FILE *fp, const ion_t *ion)
 {
-	const char *label1[]={"ION ALPHA","ION BETA"},*label2="IONOSPHERIC CORR";
 	const char *navtype[]={"LNAV","D1D2","CNVX","IFNV"};
 	const char *regtype[]={"WIDE","JAPN"};
 	int i,j,sys,id,n;
@@ -2576,16 +2575,19 @@ static void out_iono_sys4(FILE *fp, const ion_t *ion)
 	if (norm(ion->d,n)<=0.0) return;
 
 	switch (sys) {
-		case SYS_GPS: id=0; break;
-		case SYS_QZS: id=0; reg=(char *)regtype[0]; break;
-		case SYS_IRN: id=0; break;
-		case SYS_CMP: id=1; break;
+		case SYS_GPS:id=(ion->navtype==NAV_GPS_LNAV)?0:2;break;
+		case SYS_QZS:
+			id=(ion->navtype==NAV_QZS_LNAV)?0:2;
+			reg=(char *)regtype[ion->zone]; break;
+		case SYS_IRN: id=(ion->navtype==NAV_IRN_LNAV)?0:2;break;
+		case SYS_CMP:
+			id=(ion->navtype==NAV_BDS_D1||ion->navtype==NAV_BDS_D2)?1:2;break;
         case SYS_GAL: id=3; break;
 		default: return;
 	}
 
     satno2id(ion->sat,buff);
-	fprintf(fp, "> ION %-3s %4s %4s\n",buff,navtype[id],"");
+	fprintf(fp, "> ION %-3s %4s %4s\n",buff,navtype[id],reg);
 	time2epoch(ion->ttm,ep);
 	fprintf(fp, "    %4.0f %2.0f %2.0f %2.0f %2.0f %2.0f",
 		ep[0],ep[1],ep[2],ep[3],ep[4],ep[5]);
@@ -2635,7 +2637,7 @@ static void detect_utc_src(const char *sys, int *src, int *dst)
     const char *sysid[]={"GP","UT","GL","GA","QZ","BD","IR","SB"};
 
     *src=-1; /* unknown */
-    for (i=0;i<sizeof(src)/2;i++) {
+    for (i=0;i<sizeof(sysid)/2;i++) {
         if (strncmp(sys,sysid[i],2)==0) {
             *src=TSYS_GPS+i;
             break;
@@ -2643,9 +2645,9 @@ static void detect_utc_src(const char *sys, int *src, int *dst)
     }
 
     *dst=-1; /* unknown */
-    for (i=0;i<sizeof(src)/2;i++) {
+    for (i=0;i<sizeof(sysid)/2;i++) {
         if (strncmp(sys+2,sysid[i],2)==0) {
-            *src=TSYS_GPS+i;
+            *dst=TSYS_GPS+i;
             break;
         }
     }
@@ -2664,13 +2666,13 @@ static void out_time_sys(FILE *fp, const char *sys, const sto_t *utc)
 		fprintf(fp,"%-4s ",sys);
 		outnavf_n(fp,utc->a[0],10);
 		outnavf_n(fp,utc->a[1],9);
-		fprintf(fp,"%7.0f%5.0f%10s%-20s\n",t,w,"",label1);
+		fprintf(fp,"%7.0f%5.0f%10s%-20s\n",(double)t,(double)w,"",label1);
 	}
 	else {
 		fprintf(fp,"    ");
 		outnavf_n(fp,utc->a[0],12);
 		outnavf_n(fp,utc->a[1],12);
-		fprintf(fp,"%9.0f%9.0f %-20s\n",t,w,label2);
+		fprintf(fp,"%9.0f%9.0f %-20s\n",(double)t,(double)w,label2);
 	}
 }
 /* output time system corrections --------------------------------------------*/
@@ -2794,13 +2796,14 @@ static void out_leaps(FILE *fp, int sys, const rnxopt_t *opt, const nav_t *nav)
     if (opt->rnxver<=300) {
         if (sys==SYS_GPS) fprintf(fp,"%6.0f%54s%-20s\n",dt_ls,"",label);
     }
-    else if (utc->dt_lsf==0.0 && dn==0 && wn_lsf==0) {
+    else if (utc->dt_lsf==0 && dn==0 && wn_lsf==0) {
         fprintf(fp,"%6.0f%18s%3s%33s%-20s\n",dt_ls,"",
                 (sys==SYS_CMP)?"BDS":"","",label);
     }
     else {
-        fprintf(fp,"%6.0f%6.0f%6.0f%6.0f%3s%33s%-20s\n",dt_ls,
-                utc->dt_lsf,wn_lsf,dn,(sys==SYS_CMP)?"BDS":"","",label);
+		fprintf(fp,"%6.0f%6.0f%6.0f%6.0f%3s%33s%-20s\n",(double)dt_ls,
+				(double)utc->dt_lsf,(double)wn_lsf,(double)dn,
+				(sys==SYS_CMP)?"BDS":"","",label);
     }
 }
 /* output RINEX navigation data file header ------------------------------------
@@ -3237,8 +3240,17 @@ extern int outrnxgnavb(FILE *fp, const rnxopt_t *opt, const geph_t *geph)
 #if 0 /* input dtaun instead of age */
     outnavf(fp,geph->dtaun     );
 #else
-    outnavf(fp,geph->age       );
-#endif    
+	outnavf(fp,geph->age       );
+#endif
+	if (opt->rnxver>=305) { /* ver.3.05 */
+		fprintf(fp,"\n%s",sep      );
+        /* Line 4 */
+		outnavf(fp,geph->flag      );
+		outnavf(fp,geph->dtaun     );
+		outnavf(fp,geph->sva       );
+		/*outnavf(fp,geph->health    ); */
+	}
+
     return fprintf(fp,"\n")!=EOF;
 }
 /* output RINEX GEO navigation data file header --------------------------------

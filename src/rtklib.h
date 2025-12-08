@@ -693,7 +693,9 @@ typedef struct {        /* GLONASS broadcast ephemeris type */
     int iode;           /* IODE (0-6 bit of tb field) */
     int frq;            /* satellite frequency number */
     int svh,sva,age;    /* satellite health, accuracy, age of operation */
-    int code;
+	int code;
+	int health;         /* health flags: b2:l(3),b1:Ac,b0:C */
+	int flag;           /* flags: b708:M,b6:P4,b5:P3,b4:P2,b2-3:P1,b0-1:P */
     gtime_t toe;        /* epoch of epherides (gpst) */
     gtime_t tof;        /* message frame time (gpst) */
     double pos[3];      /* satellite position (ecef) (m) */
