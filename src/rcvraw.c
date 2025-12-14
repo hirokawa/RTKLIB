@@ -1554,3 +1554,16 @@ extern void set_utc_param(raw_t *raw, int sat, int navtype, double *utc)
 	sto->dt_ls=utc[4];
 	sto->dt_lsf=utc[7];
 }
+/* set sto to utc array */
+extern void sto2utc(sto_t *sto, double *utc)
+{
+    int wnt,wn_lsf;
+	utc[0]=sto->a[0];
+	utc[1]=sto->a[1];
+	utc[2]=time2gpst(sto->t0,&wnt);
+	utc[3]=(double)wnt;
+	utc[4]=(double)sto->dt_ls;
+	utc[6]=(int)(time2gpst(sto->tlsf,&wn_lsf)/86400.0);
+	utc[5]=(double)wn_lsf;
+    utc[7]=(double)sto->dt_lsf;
+}

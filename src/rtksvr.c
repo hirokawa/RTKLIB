@@ -216,19 +216,11 @@ static void update_sbs(rtksvr_t *svr, sbsmsg_t *sbsmsg, int index)
 /* update ion/utc parameters -------------------------------------------------*/
 static void update_ionutc(rtksvr_t *svr, nav_t *nav, int index)
 {
-    if (svr->navsel==0||svr->navsel==index+1) {
-        matcpy(svr->nav.utc_gps,nav->utc_gps,8,1);
-        matcpy(svr->nav.utc_glo,nav->utc_glo,8,1);
-        matcpy(svr->nav.utc_gal,nav->utc_gal,8,1);
-        matcpy(svr->nav.utc_qzs,nav->utc_qzs,8,1);
-        matcpy(svr->nav.utc_cmp,nav->utc_cmp,8,1);
-        matcpy(svr->nav.utc_irn,nav->utc_irn,9,1);
-        matcpy(svr->nav.utc_sbs,nav->utc_sbs,4,1);
-        matcpy(svr->nav.ion_gps,nav->ion_gps,8,1);
-        matcpy(svr->nav.ion_gal,nav->ion_gal,4,1);
-        matcpy(svr->nav.ion_qzs,nav->ion_qzs,8,1);
-        matcpy(svr->nav.ion_cmp,nav->ion_cmp,8,1);
-        matcpy(svr->nav.ion_irn,nav->ion_irn,8,1);
+	int i;
+	if (svr->navsel==0||svr->navsel==index+1) {
+		for (i=0;i<NION;i++) {
+           svr->nav.ion[i]=nav->ion[i];
+		}
     }
     svr->nmsg[index][2]++;
 }

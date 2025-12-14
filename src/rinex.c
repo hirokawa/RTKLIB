@@ -183,14 +183,18 @@ static const double ura_nominal[]={     /* URA nominal values */
     2.0,2.8,4.0,5.7,8.0,11.3,16.0,32.0,64.0,128.0,256.0,512.0,1024.0,
     2048.0,4096.0,8192.0
 };
-static char
+static const char
     *navids_gps[]={"LNAV","CNAV","CNV2",NULL},
     *navids_gal[]={"FNAV","INAV",NULL},
     *navids_glo[]={"FDMA","L1OC","L3OC",NULL},
     *navids_qzs[]={"LNAV","CNAV","CNV2",NULL},
     *navids_cmp[]={"D1","D2","CNV1","CNV2","CNV3",NULL},
     *navids_sbs[]={"SBAS",NULL},
-    *navids_irn[]={"LNAV","L1NV",NULL};
+	*navids_irn[]={"LNAV","L1NV",NULL};
+static const char *sto_navtype[]={
+	"LNAV","FDMA","IFNV","D1D2","SBAS","CNVX","L1NV","LXOC"};
+static const char *eop_navtype[]={"LNAV","CNVX","L1NV","LXOC"};
+static const char *ion_navtype[]={"LNAV","D1D2","CNVX","IFNV","L1NV"};
 
 /* type definition -----------------------------------------------------------*/
 typedef struct {                        /* signal index type */
@@ -752,6 +756,28 @@ static int readrnxh(FILE *fp, double *ver, char *type, int *sys, int *tsys,
         if (++i>=MAXPOSHEAD&&*type==' ') break; /* no RINEX file */
     }
     return 0;
+}
+/* detect src/dst of time system correction */
+static void detect_utc_src(const char *sys, int *src, int *dst)
+{
+    int i;
+    const char *sysid[]={"GP","UT","GL","GA","QZ","BD","IR","SB"};
+
+    *src=-1; /* unknown */
+    for (i=0;i<sizeof(sysid)/2;i++) {
+        if (strncmp(sys,sysid[i],2)==0) {
+            *src=TSYS_GPS+i;
+            break;
+        }
+    }
+
+    *dst=-1; /* unknown */
+    for (i=0;i<sizeof(sysid)/2;i++) {
+        if (strncmp(sys+2,sysid[i],2)==0) {
+            *dst=TSYS_GPS+i;
+            break;
+        }
+    }
 }
 /* decode observation epoch --------------------------------------------------*/
 static int decode_obsepoch(FILE *fp, char *buff, double ver, gtime_t *time,
@@ -1442,13 +1468,13 @@ static int select_navid(int sys, const char *id, int *sz)
 			{31,35,39,0,0},{31,31,39,39,35},{15,0,0,0,0},{31,35,0,0,0}};
 
     switch (sys) {
-		case SYS_GPS: navids=navids_gps; sz_=sz_t[0]; break;
-		case SYS_GAL: navids=navids_gal; sz_=sz_t[1]; break;
-		case SYS_GLO: navids=navids_glo; sz_=sz_t[2]; break;
-		case SYS_QZS: navids=navids_qzs; sz_=sz_t[3]; break;
-		case SYS_CMP: navids=navids_cmp; sz_=sz_t[4]; break;
-		case SYS_SBS: navids=navids_sbs; sz_=sz_t[5]; break;
-        case SYS_IRN: navids=navids_irn; sz_=sz_t[6]; break;
+		case SYS_GPS: navids=navids_gps; sz_=(int *)sz_t[0]; break;
+		case SYS_GAL: navids=navids_gal; sz_=(int *)sz_t[1]; break;
+		case SYS_GLO: navids=navids_glo; sz_=(int *)sz_t[2]; break;
+		case SYS_QZS: navids=navids_qzs; sz_=(int *)sz_t[3]; break;
+		case SYS_CMP: navids=navids_cmp; sz_=(int *)sz_t[4]; break;
+		case SYS_SBS: navids=navids_sbs; sz_=(int *)sz_t[5]; break;
+        case SYS_IRN: navids=navids_irn; sz_=(int *)sz_t[6]; break;
     }
     
     for (j=0;navids[j];j++) {
@@ -1463,20 +1489,274 @@ static int select_navid(int sys, const char *id, int *sz)
     trace(4,"select_navid: sys=%2d navid=%d %s\n",sys,navid,navids[j]);
     return navid;
 }
+static int sys2tsys(int sys)
+{
+	int tsys;
+	switch(sys) {
+		case SYS_GPS:tsys=TSYS_GPS;break;
+		case SYS_GLO:tsys=TSYS_GLO;break;
+		case SYS_GAL:tsys=TSYS_GAL;break;
+		case SYS_CMP:tsys=TSYS_CMP;break;
+		case SYS_QZS:tsys=TSYS_QZS;break;
+		case SYS_SBS:tsys=TSYS_SBS;break;
+		case SYS_IRN:tsys=TSYS_IRN;break;
+		default:tsys=TSYS_GPS;
+	}
+	return tsys;
+}
+/* decode STO message */
+static int parse_rnxnavb_sto(FILE *fp, int sys, nav_t *nav, char *buff)
+{
+	gtime_t t0;
+	int j,sp=4,src,dst,id,tsys,week,prn0;
+	sto_t *sto;
+	char *p;
+	double data[4];
 
+	for (id=0;id<NSTO_NAV;id++) {
+		if(strncmp(buff+10,sto_navtype[id],4)==0) break;
+	}
+	if (id==NSTO_NAV) {
+		trace(2,"rinex nav STO invalid navigation type: %23.23s\n",buff);
+		return -1;
+	}
+
+	tsys=sys2tsys(sys);
+
+	fgets(buff,MAXRNXLEN,fp);
+	/* decode reference epoch field */
+	if (str2time(buff+sp,0,19,&t0)) {
+		trace(2,"rinex nav STO t0 error: %23.23s\n",buff);
+		return -1;
+	}
+	detect_utc_src(buff+sp+19,&src,&dst);
+
+	if (src==-1||dst==-1) {
+		trace(2,"rinex nav STO invalid source/destination: %23.23s\n",buff);
+		return -1;
+	}
+
+	prn0=(sys==SYS_QZS)?193:1;
+
+	sto=&nav->sto[tsys];
+	sto->sat=satno(prn0,sys);
+	sto->navtype=id;
+	sto->t0=t0;
+	sto->src=src;
+    sto->dst=dst;
+    time2gpst(t0,&week);
+
+	fgets(buff,MAXRNXLEN,fp);
+
+	/* decode data fields */
+	for (j=0,p=buff+sp;j<4;j++,p+=19) {
+		data[j]=str2num(p,0,19);
+	}
+
+	sto->ttm=gpst2time(week,data[0]);
+	for (j=0;j<3;j++) {
+    	sto->a[j]=data[j+1];
+	}
+	return 0;
+}
+/* decode EOP message */
+static int parse_rnxnavb_eop(FILE *fp, int sys, nav_t *nav, char *buff)
+{
+	gtime_t t0;
+	int j,sp=4,src,dst,id,tsys,week,prn0;
+	eop_t *eop;
+	char *p;
+	double ttm;
+
+	for (id=0;id<NEOP_NAV;id++) {
+		if(strncmp(buff+10,eop_navtype[id],4)==0) break;
+	}
+	if (id==NEOP_NAV) {
+		trace(2,"rinex nav EOP invalid navigation type: %23.23s\n",buff);
+		return -1;
+	}
+
+	tsys=sys2tsys(sys);
+
+	fgets(buff,MAXRNXLEN,fp);
+	/* decode reference epoch field */
+	if (str2time(buff+sp,0,19,&t0)) {
+		trace(2,"rinex nav EOP t0 error: %23.23s\n",buff);
+		return -1;
+	}
+
+	prn0=(sys==SYS_QZS)?(sys==SYS_SBS?121:193):1;
+
+	eop=&nav->eop[tsys];
+	eop->sat=satno(prn0,sys);
+	eop->type=id;
+	eop->t0=t0;
+
+	fgets(buff,MAXRNXLEN,fp);
+	for (j=0,p=buff+sp+19;j<3;j++,p+=19) {
+		eop->xp[j]=str2num(p,0,19);
+	}
+
+	fgets(buff,MAXRNXLEN,fp);
+	for (j=0,p=buff+sp+19;j<3;j++,p+=19) {
+		eop->yp[j]=str2num(p,0,19);
+	}
+
+	fgets(buff,MAXRNXLEN,fp);
+	ttm=str2num(buff+sp,0,19);
+	time2gpst(t0,&week);
+    eop->ttm=gpst2time(week,ttm);
+
+	for (j=0,p=buff+sp+19;j<3;j++,p+=19) {
+		eop->dut1[j]=str2num(p,0,19);
+	}
+
+	return 0;
+}
+/* decode ION message */
+static int parse_rnxnavb_ion(FILE *fp, int sys, nav_t *nav, char *buff)
+{
+	gtime_t t0;
+	int i=0,j,k,sp=4,src,dst,id,tsys,week,prn0,subtype=0;
+	ion_t *ion;
+	char *p;
+	double ttm;
+
+	for (id=0;id<NION_NAV;id++) {
+		if(strncmp(buff+10,ion_navtype[id],4)==0) break;
+	}
+
+	if (sys==SYS_IRN) {
+		subtype=(strncmp(buff+15,"KLOB",4)==0)?0:1;
+	} else if (sys==SYS_QZS) {
+		subtype=(strncmp(buff+15,"WIDE",4)==0)?0:1;
+	}
+
+
+	if (id==NION_NAV) {
+		trace(2,"rinex nav ION invalid navigation type: %23.23s\n",buff);
+		return -1;
+	}
+
+	tsys=sys2tsys(sys);
+
+	fgets(buff,MAXRNXLEN,fp);
+	/* decode reference epoch field */
+	if (str2time(buff+sp,0,19,&t0)) {
+		trace(2,"rinex nav ION t0 error: %23.23s\n",buff);
+		return -1;
+	}
+
+	prn0=(sys==SYS_QZS)?(sys==SYS_SBS?121:193):1;
+
+	switch (sys) {
+		case SYS_GPS:
+			k=(id==ION_NAV_LNAV)?ION_GPS_LNAV_KLOB:ION_GPS_CNVX_KLOB;break;
+		case SYS_GLO:k=ION_GLO_LXOC_CDMA;break;
+		case SYS_GAL:k=ION_GAL_IFNV_NEQN;break;
+		case SYS_CMP:
+			k=(id==ION_NAV_LNAV)?ION_CMP_D1D2_KLOB:ION_CMP_CNVX_BDGIM;break;
+		case SYS_IRN:
+			if (id==ION_NAV_LNAV) {
+				k=ION_IRN_LNAV_KLOB;
+			} else {
+				k=(subtype==0)?ION_IRN_L1NV_KLOB:ION_IRN_L1NV_NEQN;
+			}
+			break;
+		case SYS_QZS:
+			if (subtype==0) {
+				k=(id==ION_NAV_LNAV)?ION_QZS_LNAV_KLOB:ION_QZS_CNVX_KLOB;
+			} else {
+				k=(id==ION_NAV_LNAV)?ION_QZS_LNAV_KLOBL:ION_QZS_CNVX_KLOBL;
+			}
+            break;
+		default:k=ION_GPS_LNAV_KLOB;
+	}
+
+	ion=&nav->ion[k];
+	ion->sat=satno(prn0,sys);
+	ion->navtype=id;
+	ion->ttm=t0;
+
+	if (sys==SYS_GPS||sys==SYS_QZS||id==ION_CMP_D1D2_KLOB||
+		id==ION_IRN_LNAV_KLOB) {
+		for (j=0,i=0,p=buff+sp+19;j<3;j++,p+=19) {
+			ion->d[i++]=str2num(p,0,19);
+		}
+		fgets(buff,MAXRNXLEN,fp);
+		for (j=0,p=buff+sp;j<4;j++,p+=19) {
+			ion->d[i++]=str2num(p,0,19);
+		}
+		fgets(buff,MAXRNXLEN,fp);
+		ion->d[i]=str2num(buff+sp,0,19);
+	} else if (sys==SYS_GAL) {
+		for (j=0,p=buff+sp+19;j<3;j++,p+=19) {
+			ion->d[j]=str2num(p,0,19);
+		}
+ 		fgets(buff,MAXRNXLEN,fp);
+		ion->idf[0]=str2num(buff+sp,0,19);
+	} else if (id==ION_CMP_CNVX_BDGIM) {
+		for (j=0,i=0,p=buff+sp+19;j<3;j++,p+=19) {
+			ion->d[i++]=str2num(p,0,19);
+		}
+		fgets(buff,MAXRNXLEN,fp);
+		for (j=0,p=buff+sp;j<4;j++,p+=19) {
+			ion->d[i++]=str2num(p,0,19);
+		}
+ 		fgets(buff,MAXRNXLEN,fp);
+		for (j=0,p=buff+sp;j<2;j++,p+=19) {
+			ion->d[i++]=str2num(p,0,19);
+		}
+	} else if (id==ION_IRN_L1NV_KLOB) {
+		ion->iod=str2num(buff+sp+19,0,19);
+		fgets(buff,MAXRNXLEN,fp);
+		for (j=0,i=0,p=buff+sp;j<4;j++,p+=19) {
+			ion->d[i++]=str2num(p,0,19);
+		}
+		fgets(buff,MAXRNXLEN,fp);
+		for (j=0,p=buff+sp;j<4;j++,p+=19) {
+			ion->d[i++]=str2num(p,0,19);
+		}
+		fgets(buff,MAXRNXLEN,fp);
+		for (j=0,p=buff+sp;j<4;j++,p+=19) {
+			ion->d[i++]=str2num(p,0,19);
+		}
+	} else if (id==ION_IRN_L1NV_NEQN) {
+		ion->iod=str2num(buff+sp+19,0,19);
+        i=0;
+		for (k=0;k<3;k++) {   /* region 1,2,3 */
+			fgets(buff,MAXRNXLEN,fp);
+			for (j=0,p=buff+sp;j<3;j++,p+=19) {
+				ion->d[i++]=str2num(p,0,19);
+			}
+			ion->idf[k]=str2num(p,0,19);
+			fgets(buff,MAXRNXLEN,fp);
+			for (j=0,p=buff+sp;j<4;j++,p+=19) {
+				if (j<2) {
+					ion->lat[k][j]=str2num(p,0,19);
+				} else {
+					ion->lon[k][j-2]=str2num(p,0,19);
+				}
+			}
+		}
+	} else if (id==ION_GLO_LXOC_CDMA) {
+		for (j=0,i=0,p=buff+sp+19;j<3;j++,p+=19) {
+			ion->d[i++]=str2num(p,0,19);
+		}
+    }
+
+	return 0;
+}
 /* read RINEX navigation data body -------------------------------------------*/
-static int readrnxnavb(FILE *fp, const char *opt, double ver, int sys,
-                       int *type, eph_t *eph, geph_t *geph, seph_t *seph)
+static int readrnxnavb(FILE *fp, const char *opt, double ver, nav_t *nav,
+				int sys, int *type, eph_t *eph, geph_t *geph, seph_t *seph)
 {
     gtime_t toc;
     double data[64];
-    int i=0,j,prn,sat=0,sp=3,mask,navid=-1,sz=31;
-    char buff[MAXRNXLEN],id[8]="",*p;
-
+    int i=0,j,prn,sat=0,sp=3,mask,navid=-1,sz=31,ret;
+	char buff[MAXRNXLEN],id[8]="",*p;
 
     trace(4,"readrnxnavb: ver=%.2f sys=%d\n",ver,sys);
-
- 
 
     /* set system mask */
     mask=set_sysmask(opt);
@@ -1500,19 +1780,22 @@ static int readrnxnavb(FILE *fp, const char *opt, double ver, int sys,
                     if (navid<0) return 0;
                 }
                 else if (strncmp(buff+2,"STO",3)==0) { /* System Time Offset (STO) record */
-                    /* TBD */
-                    trace(2,"rinex nav STO record not supported: %23.23s\n",buff);
-                    return 0;
-                }
-                else if (strncmp(buff+2,"EOP",3)==0) { /* Earth Orientation Parameter record */
-                    /* TBD */
-                    trace(2,"rinex nav EOP record not supported: %23.23s\n",buff);
-                    return 0;
+					ret=parse_rnxnavb_sto(fp,sys,nav,buff);
+					if (ret<0) {
+                        return ret;
+					}
+				}
+				else if (strncmp(buff+2,"EOP",3)==0) { /* Earth Orientation Parameter record */
+					ret=parse_rnxnavb_eop(fp,sys,nav,buff);
+					if (ret<0) {
+                        return ret;
+					}
                 }
                 else if (strncmp(buff+2,"ION",3)==0) { /* Ionosphere (ION) record */
-                    /* TBD */
-                    trace(2,"rinex nav ION record not supported: %23.23s\n",buff);
-                    return 0;
+					ret=parse_rnxnavb_ion(fp,sys,nav,buff);
+					if (ret<0) {
+                        return ret;
+					}
                 }
                 else {
                     trace(2,"rinex nav unknown record: %23.23s\n",buff);
@@ -1565,10 +1848,10 @@ static int readrnxnavb(FILE *fp, const char *opt, double ver, int sys,
         }
         else {
 
-            /* decode data fields */
-            for (j=0,p=buff+sp;j<4;j++,p+=19) {
-                data[i++]=str2num(p,0,19);
-            }
+			/* decode data fields */
+			for (j=0,p=buff+sp;j<4;j++,p+=19) {
+				data[i++]=str2num(p,0,19);
+			}
             /* decode ephemeris */
             if (sys==SYS_GLO&&i>=19) {
                 if (ver>=4.0 && navid!=0) return 0; /* only FDMA supported */
@@ -1653,7 +1936,7 @@ static int readrnxnav(FILE *fp, const char *opt, double ver, int sys,
     if (!nav) return 0;
     
     /* read RINEX navigation data body */
-    while ((stat=readrnxnavb(fp,opt,ver,sys,&type,&eph,&geph,&seph))>=0) {
+    while ((stat=readrnxnavb(fp,opt,ver,nav,sys,&type,&eph,&geph,&seph))>=0) {
         
         /* add ephemeris to navigation data */
         if (stat) {
@@ -2088,7 +2371,7 @@ extern int input_rnxctr(rnxctr_t *rnx, FILE *fp)
         case 'J': sys=SYS_QZS ; break; /* extension */
         default: return 0;
     }
-    if ((stat=readrnxnavb(fp,rnx->opt,rnx->ver,sys,&type,&eph,&geph,&seph))<=0) {
+	if ((stat=readrnxnavb(fp,rnx->opt,rnx->ver,&rnx->nav,sys,&type,&eph,&geph,&seph))<=0) {
         return stat<0?-2:0;
     }
     if (type==1) { /* GLONASS ephemeris */
@@ -2106,7 +2389,7 @@ extern int input_rnxctr(rnxctr_t *rnx, FILE *fp)
         rnx->ephset=0;
     }
     else { /* other ephemeris */
-        sys=satsys(eph.sat,&prn);
+		sys=satsys(eph.sat,&prn);
         set=(sys==SYS_GAL&&(eph.code&(1<<9)))?1:0; /* GAL 0:I/NAV,1:F/NAV */
         rnx->nav.eph[eph.sat-1+MAXSAT*set]=eph;
         rnx->time=eph.ttr;
@@ -2560,6 +2843,23 @@ static void out_iono(FILE *fp, int sys, const rnxopt_t *opt, const nav_t *nav)
 		out_iono_sys(fp,"IRN",nav->ion[ION_IRN_L1NV_KLOB].d,8);
 	}
 }
+/* select navtype id */
+static int select_sysid(int sys, int navtype)
+{
+	int id=-1;
+
+	switch (sys) {
+		case SYS_GPS:id=(navtype==NAV_GPS_LNAV)?0:2;break;
+		case SYS_QZS:id=(navtype==NAV_QZS_LNAV)?0:2;break;
+		case SYS_IRN:id=(navtype==NAV_IRN_LNAV)?0:2;break;
+		case SYS_CMP:
+			id=(navtype==NAV_BDS_D1||navtype==NAV_BDS_D2)?1:2;break;
+		case SYS_GAL:id=3;break;
+	}
+	return id;
+}
+
+
 /* output iono correction for a system (RINEX v4)-------------------------------*/
 static void out_iono_sys4(FILE *fp, const ion_t *ion)
 {
@@ -2574,17 +2874,11 @@ static void out_iono_sys4(FILE *fp, const ion_t *ion)
 
 	if (norm(ion->d,n)<=0.0) return;
 
-	switch (sys) {
-		case SYS_GPS:id=(ion->navtype==NAV_GPS_LNAV)?0:2;break;
-		case SYS_QZS:
-			id=(ion->navtype==NAV_QZS_LNAV)?0:2;
-			reg=(char *)regtype[ion->zone]; break;
-		case SYS_IRN: id=(ion->navtype==NAV_IRN_LNAV)?0:2;break;
-		case SYS_CMP:
-			id=(ion->navtype==NAV_BDS_D1||ion->navtype==NAV_BDS_D2)?1:2;break;
-        case SYS_GAL: id=3; break;
-		default: return;
+	id=select_sysid(sys,ion->navtype);
+	if (id==-1) {
+		return;
 	}
+    reg=(sys==SYS_QZS)?(char *)regtype[ion->zone]:"";
 
     satno2id(ion->sat,buff);
 	fprintf(fp, "> ION %-3s %4s %4s\n",buff,navtype[id],reg);
@@ -2630,29 +2924,6 @@ static void out_iono4(FILE *fp, int sys, const rnxopt_t *opt, const nav_t *nav)
 		out_iono_sys4(fp,&nav->ion[TSYS_IRN]);
     }
 }
-/* detect src/dst of time system correction */
-static void detect_utc_src(const char *sys, int *src, int *dst)
-{
-    int i;
-    const char *sysid[]={"GP","UT","GL","GA","QZ","BD","IR","SB"};
-
-    *src=-1; /* unknown */
-    for (i=0;i<sizeof(sysid)/2;i++) {
-        if (strncmp(sys,sysid[i],2)==0) {
-            *src=TSYS_GPS+i;
-            break;
-        }
-    }
-
-    *dst=-1; /* unknown */
-    for (i=0;i<sizeof(sysid)/2;i++) {
-        if (strncmp(sys+2,sysid[i],2)==0) {
-            *dst=TSYS_GPS+i;
-            break;
-        }
-    }
-}
-
 /* output time system correction for a system --------------------------------*/
 static void out_time_sys(FILE *fp, const char *sys, const sto_t *utc)
 {

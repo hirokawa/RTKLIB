@@ -839,7 +839,7 @@ static int model_iono(gtime_t time, const double *pos, const double *azel,
         return iontec(time,nav,pos,azel,1,dion,var);
     }
     if (opt->ionoopt==IONOOPT_BRDC) {
-        *dion=ionmodel(time,nav->ion_gps,pos,azel);
+        *dion=ionmodel(time,nav->ion[ION_GPS_LNAV_KLOB].d,pos,azel);
         *var=SQR(*dion*ERR_BRDCI);
         return 1;
     }

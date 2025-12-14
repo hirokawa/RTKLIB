@@ -119,13 +119,13 @@ extern "C" {
 #define SYS_ALL     0xFF                /* navigation system: all */
 
 #define TSYS_GPS    0                   /* time system: GPS time */
-#define TSYS_UTC    1                   /* time system: UTC */
-#define TSYS_GLO    2                   /* time system: GLONASS time */
-#define TSYS_GAL    3                   /* time system: Galileo time */
-#define TSYS_QZS    4                   /* time system: QZSS time */
+#define TSYS_GLO    1                   /* time system: GLONASS time */
+#define TSYS_GAL    2                   /* time system: Galileo time */
+#define TSYS_QZS    3                   /* time system: QZSS time */
+#define TSYS_SBS    4                   /* time system: SBAS time */
 #define TSYS_CMP    5                   /* time system: BeiDou time */
 #define TSYS_IRN    6                   /* time system: IRNSS time */
-#define TSYS_SBS    7                   /* time system: SBAS time */ 
+#define TSYS_UTC    7                   /* time system: UTC */
 
 #ifndef NTSYS
 #define NTSYS       8                   /* number of time system */
@@ -154,11 +154,12 @@ extern "C" {
 #define ION_QZS_CNVX_KLOB   7           /* Ionospheric delay model: QZS CNVX Klobuchar wide */
 #define ION_QZS_LNAV_KLOBL  8           /* Ionospheric delay model: QZS LNAV Klobuchar local */
 #define ION_QZS_CNVX_KLOBL  9           /* Ionospheric delay model: QZS CNVX Klobuchar local */
-#define ION_IRN_L1NV_KLOB   10          /* Ionospheric delay model: NavIC L1NAV Klobuchar  */
-#define ION_IRN_L1NV_NEQN   11          /* Ionospheric delay model: NavIC L1NAV NeQuick-N */
+#define ION_IRN_LNAV_KLOB   10          /* Ionospheric delay model: NavIC LNAV Klobuchar  */
+#define ION_IRN_L1NV_KLOB   11          /* Ionospheric delay model: NavIC L1NAV Klobuchar  */
+#define ION_IRN_L1NV_NEQN   12          /* Ionospheric delay model: NavIC L1NAV NeQuick-N */
 
 #ifndef NION
-#define NION       12                     /* number of iono model */
+#define NION       13                   /* number of iono model */
 #endif
 
 #ifndef NFREQ
@@ -543,6 +544,38 @@ extern "C" {
 #define NAV_SBS_L1NV    0               /* Navigation message format SBAS L1 */
 #define NAV_SBS_L5NV    1               /* Navigation message format SBAS L5 */
 
+#define STO_NAV_LNAV    0               /* Navitation mesdsage format for STO LNAV */
+#define STO_NAV_FDMA    1               /* Navitation mesdsage format for STO FDMA */
+#define STO_NAV_IFNV    2               /* Navitation mesdsage format for STO INAV/FNAV */
+#define STO_NAV_D1D2    3               /* Navitation mesdsage format for STO D1/D2 */
+#define STO_NAV_SBAS    4               /* Navitation mesdsage format for STO SBAS */
+#define STO_NAV_CNVX    5               /* Navitation mesdsage format for STO CNAV1/2/3 */
+#define STO_NAV_L1NV    6               /* Navitation mesdsage format for STO IRN L1NAV */
+#define STO_NAV_LXOC    7               /* Navitation mesdsage format for STO L1OC/L3OC */
+
+#ifndef NSTO_NAV
+#define NSTO_NAV        8
+#endif
+
+#define EOP_NAV_LNAV    0               /* Navitation mesdsage format for EOP LNAV */
+#define EOP_NAV_CNVX    1               /* Navitation mesdsage format for EOP CNAV1/2/3 */
+#define EOP_NAV_L1NV    2               /* Navitation mesdsage format for EOP IRN L1NAV */
+#define EOP_NAV_LXOC    3               /* Navitation mesdsage format for EOP L1OC/L3OC */
+
+#ifndef NEOP_NAV
+#define NEOP_NAV        4
+#endif
+
+#define ION_NAV_LNAV    0               /* Navitation mesdsage format for ION LNAV */
+#define ION_NAV_D1D2    1               /* Navitation mesdsage format for ION D1/D2 */
+#define ION_NAV_CNVX    2               /* Navitation mesdsage format for ION CNAV1,2,3 */
+#define ION_NAV_IFNV    3               /* Navitation mesdsage format for ION I/FNAV */
+#define ION_NAV_L1NV    4               /* Navitation mesdsage format for ION L1NAV */
+
+#ifndef NION_NAV
+#define NION_NAV        5
+#endif
+
 #define P2_5        0.03125             /* 2^-5 */
 #define P2_6        0.015625            /* 2^-6 */
 #define P2_11       4.882812500000000E-04 /* 2^-11 */
@@ -861,6 +894,7 @@ typedef struct {        /* ionospheric delay model parameters */
 	int sat;            /* satellite number */
     int navtype;        /* navitatyion type */
 	int zone;           /* global:0, local: 1 */
+    int iod;            /* issue of data */
 	gtime_t ttm;        /* transmission time */
 	int idf[3];         /* Ionospheric disturbance flags (IDF) */
 	double d[12];       /* Klobuchar: alp0,alp1,alp2,alp3,bet0,bet1,bet2,bet3
@@ -876,6 +910,8 @@ typedef struct {        /* ionospheric delay model parameters */
 												 long-min,long-max,MOPID-min,MOPID-max
                            GLO CDMA              c_A,c_F10.7,c_Ap
 						 */
+	double lat[3][2];   /* latitude min/max */
+	double lon[3][2];   /* longitude min/max */
 } ion_t;
 
 typedef struct {        /* SSR correction type */
@@ -1673,6 +1709,7 @@ EXPORT int decode_irn_nav(const uint8_t *buff, eph_t *eph, double *ion,
 EXPORT void adj_utcweek(gtime_t time, double *utc);
 EXPORT void set_ion_param(raw_t *raw, int sat, int navtype, double *ion);
 EXPORT void set_utc_param(raw_t *raw, int sat, int navtype, double *utc);
+EXPORT void sto2utc(sto_t *sto, double *utc);
 
 EXPORT int init_raw   (raw_t *raw, int format);
 EXPORT void free_raw  (raw_t *raw);

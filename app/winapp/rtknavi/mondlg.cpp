@@ -1325,20 +1325,26 @@ void __fastcall TMonitorDialog::ShowIonUtc(void)
 	double tow=0.0;
 	char tstr[64];
 	int i,j,k,leaps,week=0;
+	sto_t *sto;
+    ion_t *ion;
 	
 	rtksvrlock(&rtksvr);
 	time=rtksvr.rtk.sol.time;
-	for (i=0;i<8;i++) utc_gps[i]=rtksvr.nav.utc_gps[i];
-	for (i=0;i<8;i++) utc_glo[i]=rtksvr.nav.utc_glo[i];
-	for (i=0;i<8;i++) utc_gal[i]=rtksvr.nav.utc_gal[i];
-	for (i=0;i<8;i++) utc_qzs[i]=rtksvr.nav.utc_qzs[i];
-	for (i=0;i<8;i++) utc_cmp[i]=rtksvr.nav.utc_cmp[i];
-	for (i=0;i<9;i++) utc_irn[i]=rtksvr.nav.utc_irn[i];
-	for (i=0;i<8;i++) ion_gps[i]=rtksvr.nav.ion_gps[i];
-	for (i=0;i<4;i++) ion_gal[i]=rtksvr.nav.ion_gal[i];
-	for (i=0;i<8;i++) ion_qzs[i]=rtksvr.nav.ion_qzs[i];
-	for (i=0;i<8;i++) ion_cmp[i]=rtksvr.nav.ion_cmp[i];
-	for (i=0;i<8;i++) ion_irn[i]=rtksvr.nav.ion_irn[i];
+	sto=&rtksvr.nav.sto[TSYS_GPS];
+	ion=rtksvr.nav.ion;
+
+	sto2utc(&rtksvr.nav.sto[TSYS_GPS], utc_gps);
+	sto2utc(&rtksvr.nav.sto[TSYS_GLO], utc_glo);
+	sto2utc(&rtksvr.nav.sto[TSYS_GAL], utc_gal);
+	sto2utc(&rtksvr.nav.sto[TSYS_QZS], utc_qzs);
+	sto2utc(&rtksvr.nav.sto[TSYS_CMP], utc_cmp);
+	sto2utc(&rtksvr.nav.sto[TSYS_IRN], utc_irn);
+
+	for (i=0;i<8;i++) ion_gps[i]=rtksvr.nav.ion[ION_GPS_LNAV_KLOB].d[i];
+	for (i=0;i<4;i++) ion_gal[i]=rtksvr.nav.ion[ION_GAL_IFNV_NEQN].d[i];
+	for (i=0;i<8;i++) ion_qzs[i]=rtksvr.nav.ion[ION_QZS_LNAV_KLOB].d[i];
+	for (i=0;i<8;i++) ion_cmp[i]=rtksvr.nav.ion[ION_CMP_D1D2_KLOB].d[i];
+	for (i=0;i<8;i++) ion_irn[i]=rtksvr.nav.ion[ION_IRN_LNAV_KLOB].d[i];
 	rtksvrunlock(&rtksvr);
 	
 	Label->Caption="";

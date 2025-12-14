@@ -2278,7 +2278,10 @@ void __fastcall TMainForm::LoadNav(nav_t *nav)
     eph_t eph0={0};
     char buff[2049],id[32],*p;
     long toe_time,toc_time,ttr_time;
-    int i;
+	int i,wnt,wn_lsf,dn;
+	sto_t *sto;
+    ion_t *ion;
+	double tot;
     
     trace(3,"LoadNav\n");
     
@@ -2325,18 +2328,24 @@ void __fastcall TMainForm::LoadNav(nav_t *nav)
         nav->eph[i].toc.time=toc_time;
         nav->eph[i].ttr.time=ttr_time;
     }
-    str=ini->ReadString("navi","ion","");
-    for (i=0;i<8;i++) nav->ion_gps[i]=0.0;
-    sscanf(str.c_str(),"%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf",
-           nav->ion_gps  ,nav->ion_gps+1,nav->ion_gps+2,nav->ion_gps+3,
-           nav->ion_gps+4,nav->ion_gps+5,nav->ion_gps+6,nav->ion_gps+7);
+	str=ini->ReadString("navi","ion","");
+	ion=&nav->ion[ION_GPS_LNAV_KLOB];
+	for (i=0;i<8;i++) ion->d[i]=0.0;
+	sscanf(str.c_str(),"%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf",
+		ion->d,ion->d+1,ion->d+2,ion->d+3,ion->d+4,ion->d+5,
+		ion->d+6,ion->d+7);
     
-    str=ini->ReadString("navi","utc","");
-    for (i=0;i<8;i++) nav->utc_gps[i]=0.0;
-    sscanf(str.c_str(),"%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf",
-           nav->utc_gps,nav->utc_gps+1,nav->utc_gps+2,nav->utc_gps+3,
-           nav->utc_gps+4,nav->utc_gps+5,nav->utc_gps+6,nav->utc_gps+7);
-    
+	str=ini->ReadString("navi","utc","");
+
+	sto=&nav->sto[TSYS_GPS];
+	memset(sto, 0, sizeof(*sto));
+
+	sscanf(str.c_str(),"%lf,%lf,%lf,%d,%d,%d,%d,%d",&sto->a[0],&sto->a[1],
+		   &tot,&wnt,&sto->dt_ls,&wn_lsf,&dn,&sto->dt_lsf);
+	sto->ttm=gpst2time(tot,(int)wnt);
+	sto->tlsf=gpst2time(tot,(int)(wn_lsf+dn*86400.0));
+    sto->sat=satno(SYS_GPS,1);
+
     delete ini;
 }
 // save navigation data -----------------------------------------------------
@@ -2345,7 +2354,9 @@ void __fastcall TMainForm::SaveNav(nav_t *nav)
     TIniFile *ini=new TIniFile(IniFile);
     AnsiString str,s;
     char id[32];
-    int i;
+	int i;
+	sto_t *sto;
+    ion_t *ion;
     
     trace(3,"SaveNav\n");
     
@@ -2386,13 +2397,29 @@ void __fastcall TMainForm::SaveNav(nav_t *nav)
         str=str+s.sprintf("%d,",nav->eph[i].flag);
         str=str+s.sprintf("%.14E,",nav->eph[i].tgd[1]);
         ini->WriteString("navi",s.sprintf("eph_%02d",i),str);
-    }
+	}
+    ion=&nav->ion[ION_GPS_LNAV_KLOB];
     str="";
-    for (i=0;i<8;i++) str=str+s.sprintf("%.14E,",nav->ion_gps[i]);
-    ini->WriteString("navi","ion",str);
-    
-    str="";
-    for (i=0;i<8;i++) str=str+s.sprintf("%.14E,",nav->utc_gps[i]);
+    for (i=0;i<8;i++) str=str+s.sprintf("%.14E,",ion->d[i]);
+	ini->WriteString("navi","ion",str);
+
+	double tot,t_lsf;
+	int  wnt,wn_lsf,dn;
+
+	tot=time2gpst(sto->t0,&wnt);
+	dn=(int)(time2gpst(sto->t0,&wn_lsf)/86400.0);
+
+	sto=&nav->sto[TSYS_GPS];
+	str="";
+	str=str+s.sprintf("%.14E,",sto->a[0]);
+	str=str+s.sprintf("%.14E,",sto->a[1]);
+	str=str+s.sprintf("%.14E,",tot);
+	str=str+s.sprintf("%.14E,",(double)wnt);
+	str=str+s.sprintf("%.14E,",(double)sto->dt_ls);
+	str=str+s.sprintf("%.14E,",(double)wn_lsf);
+	str=str+s.sprintf("%.14E,",(double)dn);
+	str=str+s.sprintf("%.14E,",sto->dt_lsf);
+
     ini->WriteString("navi","utc",str);
     
     delete ini;

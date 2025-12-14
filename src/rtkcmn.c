@@ -529,10 +529,12 @@ extern int satexclude(int sat, double var, int svh, const prcopt_t *opt)
     
     if (opt) {
         if (opt->exsats[sat-1]==1) return 1; /* excluded satellite */
-        if (opt->exsats[sat-1]==2) return 0; /* included satellite */
-        if (!(sys&opt->navsys)) return 1; /* unselected sat sys */
-    }
-    if (sys==SYS_QZS) svh&=0xFE; /* mask QZSS LEX health */
+		if (opt->exsats[sat-1]==2) return 0; /* included satellite */
+		if (!(sys&opt->navsys)) return 1; /* unselected sat sys */
+	}
+	if (sys==SYS_QZS&&((svh&0x10)==0||(svh&0x01)==0)) {
+		svh&=0xEE; /* mask L1C/A b1(MSB) L1C/B b5(LSB) in 5bit health */
+	}
     if (svh) {
         trace(3,"unhealthy satellite: sat=%3d svh=%02X\n",sat,svh);
         return 1;
