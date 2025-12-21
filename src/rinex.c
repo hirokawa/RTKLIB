@@ -147,27 +147,6 @@
 #define MAXFREQ_GLO 13                  /* max frequency number GLONASS */
 #define NINCOBS     262144              /* incremental number of obs data */
 
-
-#define NAVID_GPS_LNAV 0
-#define NAVID_GPS_CNAV 1
-#define NAVID_GPS_CNV2 2
-#define NAVID_GAL_FNAV 0
-#define NAVID_GAL_INAV 1
-#define NAVID_GLO_FDMA 0
-#define NAVID_GLO_L1OC 1
-#define NAVID_GLO_L3OC 2
-#define NAVID_QZS_LNAV 0
-#define NAVID_QZS_CNAV 1
-#define NAVID_QZS_CNV2 2
-#define NAVID_CMP_D1   0
-#define NAVID_CMP_D2   1
-#define NAVID_CMP_CNV1 2
-#define NAVID_CMP_CNV2 3
-#define NAVID_CMP_CNV3 4
-#define NAVID_SBS_SBAS 0
-#define NAVID_IRN_LNAV 0
-#define NAVID_IRN_L1NV 1
-
 static const int navsys[]={             /* satellite systems */
     SYS_GPS,SYS_GLO,SYS_GAL,SYS_QZS,SYS_SBS,SYS_CMP,SYS_IRN,0
 };
@@ -1188,7 +1167,7 @@ static int decode_eph(double ver, int sat, gtime_t toc, const double *data,
     eph->cus =data[ 9]; eph->cic=data[12]; eph->cis =data[14];
     
     if (sys==SYS_GPS||sys==SYS_QZS) {
-        if (ver<4.00||navid==NAVID_GPS_LNAV) { /* GPS ver.2,3 or ver.4 with navid=0 */
+        if (ver<4.00||navid==NAV_GPS_LNAV) { /* GPS ver.2,3 or ver.4 with navid=0 */
             /* LNAV */
             eph->iode=(int)data[ 3];      /* IODE */
             eph->iodc=(int)data[26];      /* IODC */
@@ -1219,15 +1198,15 @@ static int decode_eph(double ver, int sat, gtime_t toc, const double *data,
             eph->tgd[3]=data[29];      /* ISC L5I5 [s] */
             eph->tgd[4]=data[30];      /* ISC L5Q5 [s] */
 
-            if (navid==NAVID_GPS_CNAV) {
+			if (navid==NAV_GPS_CNAV) {
                 idx0=30;
-                eph->code|=(1<<NAVID_GPS_CNAV);
+				eph->code|=(1<<(NAV_GPS_CNAV+2));
             }
             else {
                 idx0=34;
                 eph->tgd[5]=data[31];  /* ISC L1Cd [s] */
                 eph->tgd[6]=data[32];  /* ISC L1Cp [s] */
-                eph->code|=(1<<NAVID_GPS_CNV2);
+                eph->code|=(1<<(NAV_GPS_CNAV2+2));
             }
 
 			wn_op=(int)data[idx0+1];        /* week number of operation */
@@ -1271,8 +1250,8 @@ static int decode_eph(double ver, int sat, gtime_t toc, const double *data,
     else if (sys==SYS_CMP) { /* BeiDou v.3.02 */
         eph->toc=bdt2gpst(eph->toc);  /* bdt -> gpst */
         eph->code=navid; /* navid indicates signal type */
-        if (ver<4.00||navid==NAVID_CMP_D1||navid==NAVID_CMP_D2) {
-            eph->iode=(int)data[ 3];      /* AODE */
+		if (ver<4.00||navid==NAV_BDS_D1||navid==NAV_BDS_D2) {
+			eph->iode=(int)data[ 3];      /* AODE */
             eph->iodc=(int)data[28];      /* AODC */
             eph->toes=     data[11];      /* Toe (s) in BDT week */
             eph->week=(int)data[21];      /* bdt week */
@@ -1299,7 +1278,7 @@ static int decode_eph(double ver, int sat, gtime_t toc, const double *data,
             eph->urai[2]=(int)data[25]; /* SISAI oc1 */
             eph->urai[3]=(int)data[26]; /* SISAI oc2 */
 
-            if (navid==NAVID_CMP_CNV1||navid==NAVID_CMP_CNV2) { /* CNAV-1/CNAV-2 */
+            if (navid==NAV_BDS_CNAV1||navid==NAV_BDS_CNAV2) { /* CNAV-1/CNAV-2 */
                 idx0=31;
                 eph->tgd[0]=data[27];      /* ISC B1Cd [s] (CNAV-1) */
                 eph->tgd[1]=data[28];      /* ISC B2ad [s] (CNAV-2) */
@@ -1323,7 +1302,7 @@ static int decode_eph(double ver, int sat, gtime_t toc, const double *data,
     }
     else if (sys==SYS_IRN) { /* IRNSS v.3.03 */
         eph->code=navid; /* navid indicates signal type */
-        if ((ver>=3.03&&ver<4.00)||navid==NAVID_IRN_LNAV) {
+		if ((ver>=3.03&&ver<4.00)||navid==NAV_IRN_LNAV) {
             /* IRNSS LNAV */
             eph->iode=(int)data[ 3];      /* IODEC */
             eph->toes=     data[11];      /* Toe (s) in IRNSS week */
@@ -1405,7 +1384,7 @@ static int decode_geph(double ver, int sat, gtime_t toc, double *data,
     geph->acc[0]=data[5]*1E3; geph->acc[1]=data[9]*1E3; geph->acc[2]=data[13]*1E3;
     
     geph->svh=(int)data[ 6];
-    if (ver<4.00||(ver>=4.00&&navid==NAVID_GLO_FDMA)) { /* FDMA */
+	if (ver<4.00||(ver>=4.00&&navid==NAV_GLO_FDMA)) { /* FDMA */
         geph->frq=(int)data[10];
 #if 0 /*  output dtaun instead of age */
         geph->dtaun=data[14];
@@ -1468,13 +1447,13 @@ static int select_navid(int sys, const char *id, int *sz)
 			{31,35,39,0,0},{31,31,39,39,35},{15,0,0,0,0},{31,35,0,0,0}};
 
     switch (sys) {
-		case SYS_GPS: navids=navids_gps; sz_=(int *)sz_t[0]; break;
-		case SYS_GAL: navids=navids_gal; sz_=(int *)sz_t[1]; break;
-		case SYS_GLO: navids=navids_glo; sz_=(int *)sz_t[2]; break;
-		case SYS_QZS: navids=navids_qzs; sz_=(int *)sz_t[3]; break;
-		case SYS_CMP: navids=navids_cmp; sz_=(int *)sz_t[4]; break;
-		case SYS_SBS: navids=navids_sbs; sz_=(int *)sz_t[5]; break;
-        case SYS_IRN: navids=navids_irn; sz_=(int *)sz_t[6]; break;
+		case SYS_GPS: navids=(char **)navids_gps; sz_=(int *)sz_t[0]; break;
+		case SYS_GAL: navids=(char **)navids_gal; sz_=(int *)sz_t[1]; break;
+		case SYS_GLO: navids=(char **)navids_glo; sz_=(int *)sz_t[2]; break;
+		case SYS_QZS: navids=(char **)navids_qzs; sz_=(int *)sz_t[3]; break;
+		case SYS_CMP: navids=(char **)navids_cmp; sz_=(int *)sz_t[4]; break;
+		case SYS_SBS: navids=(char **)navids_sbs; sz_=(int *)sz_t[5]; break;
+        case SYS_IRN: navids=(char **)navids_irn; sz_=(int *)sz_t[6]; break;
     }
     
     for (j=0;navids[j];j++) {
@@ -3138,26 +3117,26 @@ static int detect_navid(int sys, int code, char ***navids)
     int navid=0;
     
     switch (sys) {
-		case SYS_GPS: *navids=navids_gps; break;
-		case SYS_GAL: *navids=navids_gal; break;
-		case SYS_GLO: *navids=navids_glo; break;
-		case SYS_QZS: *navids=navids_qzs; break;
-		case SYS_CMP: *navids=navids_cmp; break;
-		case SYS_SBS: *navids=navids_sbs; break;
-        case SYS_IRN: *navids=navids_irn; break;
+		case SYS_GPS: *navids=(char **)navids_gps; break;
+		case SYS_GAL: *navids=(char **)navids_gal; break;
+		case SYS_GLO: *navids=(char **)navids_glo; break;
+		case SYS_QZS: *navids=(char **)navids_qzs; break;
+		case SYS_CMP: *navids=(char **)navids_cmp; break;
+		case SYS_SBS: *navids=(char **)navids_sbs; break;
+        case SYS_IRN: *navids=(char **)navids_irn; break;
     }
 
     if (sys==SYS_CMP||sys==SYS_IRN||sys==SYS_GLO) {
 		navid=code;
     } else if (sys==SYS_GAL) {
-		navid = (code&1) ? NAVID_GAL_INAV : NAVID_GAL_FNAV;
+		navid = (code&1) ? NAV_GAL_INAV : NAV_GAL_FNAV;
     } else if (sys==SYS_GPS||sys==SYS_QZS) {
-        if(code&(1<<NAVID_GPS_CNAV)){
-            navid=NAVID_GPS_CNAV;
-		} else if (code&(1<<NAVID_GPS_CNV2)){
-            navid=NAVID_GPS_CNV2;
+		if(code&(1<<(NAV_GPS_CNAV+2))){
+			navid=NAV_GPS_CNAV;
+		} else if (code&(1<<(NAV_GPS_CNAV2+2))){
+			navid=NAV_GPS_CNAV2;
 		} else {
-            navid=NAVID_GPS_LNAV;
+            navid=NAV_GPS_LNAV;
         }
     }
 
@@ -3189,7 +3168,7 @@ extern int outrnxnavb(FILE *fp, const rnxopt_t *opt, const eph_t *eph)
 		time2epoch(gpst2bdt(eph->toc),ep); /* gpst -> bdt */
     }
     if (opt->rnxver>=400) {
-        if (!sat2code(eph->sat,code)) return 0;
+		if (!sat2code(eph->sat,code)) return 0;
 
 		navid=detect_navid(sys, eph->code, &navids);
 
@@ -3215,9 +3194,11 @@ extern int outrnxnavb(FILE *fp, const rnxopt_t *opt, const eph_t *eph)
         return 0;
     }
 
-    if (((sys==SYS_GPS||sys==SYS_QZS)&&(navid==NAVID_GPS_CNAV||navid==NAVID_GPS_CNV2))||
-        ((sys==SYS_CMP)&&(navid==NAVID_CMP_CNV1||navid==NAVID_CMP_CNV2||navid==NAVID_CMP_CNV3))||
-        ((sys==SYS_IRN)&&(navid==NAVID_IRN_L1NV))) {
+	if (((sys==SYS_GPS||sys==SYS_QZS)&&(navid==NAV_GPS_CNAV||
+			navid==NAV_GPS_CNAV2))||
+		((sys==SYS_CMP)&&(navid==NAV_BDS_CNAV1||navid==NAV_BDS_CNAV2||
+			navid==NAV_BDS_CNAV3))||
+		((sys==SYS_IRN)&&(navid==NAV_IRN_L1NV))) {
         v1=eph->Adot;
         v2=eph->ndot;
     }
@@ -3263,13 +3244,14 @@ extern int outrnxnavb(FILE *fp, const rnxopt_t *opt, const eph_t *eph)
     outnavf(fp,eph->idot   );
     outnavf(fp,v2          );
 
-    if (((sys==SYS_GPS||sys==SYS_QZS)&&(navid==NAVID_GPS_CNAV||navid==NAVID_GPS_CNV2))) {
-        outnavf(fp,eph->urai[0]); /* URAI NED0 */
-        outnavf(fp,eph->urai[1]); /* URAI NED1 */
-    } else if (((sys==SYS_CMP)&&(navid==NAVID_CMP_CNV1||navid==NAVID_CMP_CNV2||navid==NAVID_CMP_CNV3))) {
-        outnavf(fp,eph->flag); /* sattype */
+	if (((sys==SYS_GPS||sys==SYS_QZS)&&(navid==NAV_GPS_CNAV||navid==NAV_GPS_CNAV2))) {
+		outnavf(fp,eph->urai[0]); /* URAI NED0 */
+		outnavf(fp,eph->urai[1]); /* URAI NED1 */
+	} else if (((sys==SYS_CMP)&&(navid==NAV_BDS_CNAV1||navid==NAV_BDS_CNAV2||
+			navid==NAV_BDS_CNAV3))) {
+		outnavf(fp,eph->flag); /* sattype */
         outnavf(fp,time2bdt(gpst2bdt(eph->top),NULL));  /* top [s] */
-    } else if (((sys==SYS_IRN)&&(navid==NAVID_IRN_L1NV))) {
+    } else if (((sys==SYS_IRN)&&(navid==NAV_IRN_L1NV))) {
         outnavf(fp,0.0); /* spare */
         outnavf(fp,eph->flag); /* RSF */
     } else {
@@ -3284,17 +3266,19 @@ extern int outrnxnavb(FILE *fp, const rnxopt_t *opt, const eph_t *eph)
     fprintf(fp,"\n%s",sep  );
 
    /* Line 6 */
-    if (((sys==SYS_GPS||sys==SYS_QZS)&&(navid==NAVID_GPS_CNAV||navid==NAVID_GPS_CNV2))) {
-        outnavf(fp,eph->urai[3]); /* URAI ED */
-        outnavf(fp,eph->svh    );
-        outnavf(fp,eph->tgd[0] ); /* GPS/QZS:TGD, GAL:BGD E5a/E1, BDS: TGD1 B1/B3 */
-        outnavf(fp,eph->urai[2]); /* URAI NED2 */
-    } else if (((sys==SYS_CMP)&&(navid==NAVID_CMP_CNV1||navid==NAVID_CMP_CNV2||navid==NAVID_CMP_CNV3))) {
+	if (((sys==SYS_GPS||sys==SYS_QZS)&&(navid==NAV_GPS_CNAV||
+		navid==NAV_GPS_CNAV2))) {
+		outnavf(fp,eph->urai[3]); /* URAI ED */
+		outnavf(fp,eph->svh    );
+		outnavf(fp,eph->tgd[0] ); /* GPS/QZS:TGD, GAL:BGD E5a/E1, BDS: TGD1 B1/B3 */
+		outnavf(fp,eph->urai[2]); /* URAI NED2 */
+	} else if (((sys==SYS_CMP)&&(navid==NAV_BDS_CNAV1||navid==NAV_BDS_CNAV2||
+		navid==NAV_BDS_CNAV3))) {
         outnavf(fp,eph->urai[0]); /* SISAI_oe */
         outnavf(fp,eph->urai[1]); /* SISAI_ocb */
         outnavf(fp,eph->urai[2]); /* SISAI_oc1 */
         outnavf(fp,eph->urai[3]); /* SISAI_oc2 */
-    } else if (((sys==SYS_IRN)&&(navid==NAVID_IRN_L1NV))) {
+	} else if (((sys==SYS_IRN)&&(navid==NAV_IRN_L1NV))) {
         outnavf(fp,uravalue(eph->sva));
         outnavf(fp,eph->svh    );
         outnavf(fp,eph->tgd[0] ); /* tgd L1P-L5 */
@@ -3328,7 +3312,8 @@ extern int outrnxnavb(FILE *fp, const rnxopt_t *opt, const eph_t *eph)
     }
 
     /* Line 7- */
-    if (((sys==SYS_GPS||sys==SYS_QZS)&&(navid==NAVID_GPS_CNAV||navid==NAVID_GPS_CNV2))) {
+	if (((sys==SYS_GPS||sys==SYS_QZS)&&(navid==NAV_GPS_CNAV||
+		navid==NAV_GPS_CNAV2))) {
         outnavf(fp,eph->tgd[1]); /* GPS/QZS:TGD2 */
         outnavf(fp,eph->tgd[2]); /* GPS/QZS:TGD3 */
         outnavf(fp,eph->tgd[3]); /* GPS/QZS: ISC_L5I5 */
@@ -3336,7 +3321,7 @@ extern int outrnxnavb(FILE *fp, const rnxopt_t *opt, const eph_t *eph)
         fprintf(fp,"\n%s",sep  );    
         
         /* Line 8 */
-        if (navid==NAVID_GPS_CNV2) {
+		if (navid==NAV_GPS_CNAV2) {
             outnavf(fp,eph->tgd[5]); /* GPS/QZS: ISC L1Cd */
             outnavf(fp,eph->tgd[6]); /* GPS/QZS: ISC L1Cp */
             outnavf(fp,0.0); /* spare */
@@ -3351,8 +3336,9 @@ extern int outrnxnavb(FILE *fp, const rnxopt_t *opt, const eph_t *eph)
 		if (opt->rnxver>=402) {
 			outnavf(fp,eph->flag); /* integer flags */
         }
-    } else if (((sys==SYS_CMP)&&(navid==NAVID_CMP_CNV1||navid==NAVID_CMP_CNV2||navid==NAVID_CMP_CNV3))) {
-        if (navid==NAVID_CMP_CNV1||navid==NAVID_CMP_CNV2) {
+	} else if (((sys==SYS_CMP)&&(navid==NAV_BDS_CNAV1||navid==NAV_BDS_CNAV2||
+					navid==NAV_BDS_CNAV3))) {
+		if (navid==NAV_BDS_CNAV1||navid==NAV_BDS_CNAV2) {
             outnavf(fp,eph->tgd[0]); /* BDS: ISC B1Cd */
             outnavf(fp,eph->tgd[1]); /* BDS: ISC B2ad */
             outnavf(fp,eph->tgd[2]); /* BDS: TGD B1Cp */
@@ -3364,7 +3350,7 @@ extern int outrnxnavb(FILE *fp, const rnxopt_t *opt, const eph_t *eph)
         outnavf(fp,eph->urai[4]); /* SISMAI */
         outnavf(fp,eph->svh    );
         outnavf(fp,eph->flag   ); /* integrity flag */
-        if (navid==NAVID_CMP_CNV1||navid==NAVID_CMP_CNV2) {
+        if (navid==NAV_BDS_CNAV1||navid==NAV_BDS_CNAV2) {
             outnavf(fp,eph->iodc);
         } else {
             outnavf(fp,eph->tgd[4]); /* BDS: TGD B2bI */
@@ -3375,12 +3361,12 @@ extern int outrnxnavb(FILE *fp, const rnxopt_t *opt, const eph_t *eph)
         outnavf(fp,ttr+(week-eph->week)*604800.0);
         outnavf(fp,0.0); /* spare */
         outnavf(fp,0.0); /* spare */
-        if (navid==NAVID_CMP_CNV1||navid==NAVID_CMP_CNV2) {
+        if (navid==NAV_BDS_CNAV1||navid==NAV_BDS_CNAV2) {
             outnavf(fp,eph->iode);
         } else {
             outnavf(fp,0.0); /* spare */
         }
-    } else if (((sys==SYS_IRN)&&(navid==NAVID_IRN_L1NV))) {
+	} else if (((sys==SYS_IRN)&&(navid==NAV_IRN_L1NV))) {
         outnavf(fp,eph->tgd[2]); /* ISC S(L1O) */
         outnavf(fp,eph->tgd[3]); /* ISC L1D(L1O) */
         outnavf(fp,eph->tgd[4]); /* ISC L1P(S) */

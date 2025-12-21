@@ -264,7 +264,7 @@ static char codepris[7][MAXFREQ][16]={  /* code priority for each freq-index */
     {"CPYWMNSL","PYWCMNDLSX","IQX"     ,""       ,""       ,""      ,""}, /* GPS */
     {"CPABX"   ,"PCABX"     ,"IQX"     ,""       ,""       ,""      ,""}, /* GLO */
     {"CABXZ"   ,"IQX"       ,"IQX"     ,"ABCXZ"  ,"IQX"    ,""      ,""}, /* GAL */
-    {"CLSXZ"   ,"LSX"       ,"IQXDPZ"  ,"LSXEZ"  ,""       ,""      ,""}, /* QZS */
+    {"CELSXZ"  ,"LSX"       ,"IQXDPZ"  ,"LSXEZ"  ,""       ,""      ,""}, /* QZS */
     {"C"       ,"IQX"       ,""        ,""       ,""       ,""      ,""}, /* SBS */
     {"IQXDPAN" ,"IQXDPZ"    ,"DPX"     ,"IQXA"   ,"DPX"    ,""      ,""}, /* BDS */
     {"ABCX"    ,"ABCX"      ,""        ,""       ,""       ,""      ,""}  /* IRN */
@@ -1841,6 +1841,18 @@ extern int adjgpsweek(int week)
     (void)time2gpst(utc2gpst(timeget()),&w);
     if (w<1560) w=1560; /* use 2009/12/1 if time is earlier than 2009/12/1 */
     return week+(w-week+1)/1024*1024;
+}
+/* adjust gps week number ------------------------------------------------------
+* adjust gps week number using cpu time
+* args   : int   week       I   not-adjusted gps week number
+* return : adjusted gps week number
+*-----------------------------------------------------------------------------*/
+extern int adjgpsweek_8bit(int week)
+{
+    int w;
+    (void)time2gpst(utc2gpst(timeget()),&w);
+    if (w<1560) w=1560; /* use 2009/12/1 if time is earlier than 2009/12/1 */
+    return week+(w-week+128)/256*256;
 }
 /* get tick time ---------------------------------------------------------------
 * get current tick in ms

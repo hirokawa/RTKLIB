@@ -107,8 +107,6 @@
 #define FR8         8
 #define FS32        9
 
-#define P2_10       0.0009765625 /* 2^-10 */
-
 #define CPSTD_VALID 5           /* std-dev threshold of carrier-phase valid */
 
 #define ROUND(x)    (int)floor((x)+0.5)

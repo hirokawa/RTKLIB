@@ -51,13 +51,6 @@
 #define PRUNIT_GPS  299792.458          /* rtcm 3 unit of gps pseudorange (m) */
 #define PRUNIT_GLO  599584.916          /* rtcm 3 unit of glo pseudorange (m) */
 #define RANGE_MS    (CLIGHT*0.001)      /* range in 1 ms */
-#define P2_10       0.0009765625          /* 2^-10 */
-#define P2_28       3.725290298461914E-09 /* 2^-28 */
-#define P2_34       5.820766091346740E-11 /* 2^-34 */
-#define P2_41       4.547473508864641E-13 /* 2^-41 */
-#define P2_46       1.421085471520200E-14 /* 2^-46 */
-#define P2_59       1.734723475976810E-18 /* 2^-59 */
-#define P2_66       1.355252715606880E-20 /* 2^-66 */
 
 #define ROUND(x)    ((int)floor((x)+0.5))
 #define ROUND_U(x)  ((uint32_t)floor((x)+0.5))

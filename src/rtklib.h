@@ -576,30 +576,61 @@ extern "C" {
 #define NION_NAV        5
 #endif
 
+#define SF_OFST_GPS_LNAV	0		/* Offset of raw->subfrm for GPS/QZS LNAV */
+#define SF_OFST_GPS_CNAV	150		/* Offset of raw->subfrm for GPS/QZS CNAV */
+#define SF_OFST_GPS_CNAV2	290		/* Offset of raw->subfrm for GPS/QZS CNAV2 */
+#define SF_OFST_BDS_D1D2	0		/* Offset of raw->subfrm for BDS D1/D2 */
+#define SF_OFST_BDS_CNAV2	418		/* Offset of raw->subfrm for BDS CNAV-2 */
+#define SF_OFST_BDS_CNAV3	562		/* Offset of raw->subfrm for BDS CNAV-2 */
+#define SF_OFST_GAL_INAV	0		/* Offset of raw->subfrm for GAL INAV */
+#define SF_OFST_GAL_FNAV	128		/* Offset of raw->subfrm for GAL FNAV */
+#define SF_OFST_GAL_CNAV	283		/* Offset of raw->subfrm for GAL CNAV */
+
 #define P2_5        0.03125             /* 2^-5 */
 #define P2_6        0.015625            /* 2^-6 */
+#define P2_8        3.906250000000000E-03 /* 2^-8 */
+#define P2_9        1.953125000000000E-03 /* 2^-9 */
+#define P2_10       9.765625000000000E-04 /* 2^-10 */
 #define P2_11       4.882812500000000E-04 /* 2^-11 */
+#define P2_12       2.441406250000000E-04 /* 2^-12 */
+#define P2_13       1.220703125000000E-04 /* 2^-13 */
+#define P2_14       6.103515625000000E-05 /* 2^-14 */
 #define P2_15       3.051757812500000E-05 /* 2^-15 */
+#define P2_16       1.525878906250000E-05 /* 2^-16 */
 #define P2_17       7.629394531250000E-06 /* 2^-17 */
 #define P2_19       1.907348632812500E-06 /* 2^-19 */
 #define P2_20       9.536743164062500E-07 /* 2^-20 */
 #define P2_21       4.768371582031250E-07 /* 2^-21 */
 #define P2_23       1.192092895507810E-07 /* 2^-23 */
 #define P2_24       5.960464477539063E-08 /* 2^-24 */
+#define P2_25       2.980232238769531E-08 /* 2^-25 */
 #define P2_27       7.450580596923828E-09 /* 2^-27 */
+#define P2_28       3.725290298461914E-09 /* 2^-28 */
 #define P2_29       1.862645149230957E-09 /* 2^-29 */
 #define P2_30       9.313225746154785E-10 /* 2^-30 */
 #define P2_31       4.656612873077393E-10 /* 2^-31 */
 #define P2_32       2.328306436538696E-10 /* 2^-32 */
 #define P2_33       1.164153218269348E-10 /* 2^-33 */
+#define P2_34       5.820766091346740E-11 /* 2^-34 */
 #define P2_35       2.910383045673370E-11 /* 2^-35 */
+#define P2_37       7.275957614183426E-12 /* 2^-37 */
 #define P2_38       3.637978807091710E-12 /* 2^-38 */
 #define P2_39       1.818989403545856E-12 /* 2^-39 */
 #define P2_40       9.094947017729280E-13 /* 2^-40 */
+#define P2_41       4.547473508864641E-13 /* 2^-41 */
 #define P2_43       1.136868377216160E-13 /* 2^-43 */
+#define P2_44       5.684341886080802E-14 /* 2^-44 */
+#define P2_46       1.421085471520200E-14 /* 2^-46 */
 #define P2_48       3.552713678800501E-15 /* 2^-48 */
+#define P2_49       1.776356839400251E-15 /* 2^-49 */
 #define P2_50       8.881784197001252E-16 /* 2^-50 */
+#define P2_51       4.440892098500626E-16 /* 2^-51 */
 #define P2_55       2.775557561562891E-17 /* 2^-55 */
+#define P2_57       6.938893903907228E-18 /* 2^-57 */
+#define P2_59       1.734723475976810E-18 /* 2^-59 */
+#define P2_60       8.673617379884035E-19 /* 2^-60 */
+#define P2_66       1.355252715606881E-20 /* 2^-66 */
+#define P2_68       3.388131789017201E-21 /* 2^-68 */
 
 #ifdef WIN32
 #define thread_t    HANDLE
@@ -620,8 +651,8 @@ extern "C" {
 /* type definitions ----------------------------------------------------------*/
 
 typedef struct {        /* time struct */
-    time_t time;        /* time (s) expressed by standard time_t */
-    double sec;         /* fraction of second under 1 s */
+	time_t time;        /* time (s) expressed by standard time_t */
+	double sec;         /* fraction of second under 1 s */
 } gtime_t;
 
 typedef struct {        /* observation data record */
@@ -644,7 +675,8 @@ typedef struct {        /* earth orientation parameter data type */
     int sat;            /* source satellite */
     int type;           /* type of EOP 0:LNAV,1:CNVX */
     gtime_t t0;         /* reference epoch of EOP data */
-    gtime_t ttm;        /* transmission time of message */
+	gtime_t ttm;        /* transmission time of message */
+    double teops;       /* reference epoch of EOP data [s] */
     double xp[3],yp[3]; /* pole offset (rad,rad/day,rad/day^2) */
     double dut1[3];     /* ut1-utc (s,s/day,s/day^2) */
 } eop_t;
@@ -697,7 +729,8 @@ typedef struct {        /* GPS/QZS/GAL broadcast ephemeris type */
                             GPS/QZS: URAI NED0,URAI NED1,URAI NED2,URAI ED
                          */
     int svh;            /* SV health (0:ok) */
-    int week;           /* GPS/QZS: gps week, GAL: galileo week */
+	int week;           /* GPS/QZS: gps week, GAL: galileo week */
+	int week_op;        /* week op */
 	int code;           /* GPS/QZS: code on L2 */
     int src;            /* GPS/QZS: data source */
                         /* GAL: data source defined as rinex 3.03 */
@@ -707,9 +740,10 @@ typedef struct {        /* GPS/QZS/GAL broadcast ephemeris type */
     int integ;          /* integrity flag as defined in RINEX 4.02 */
     gtime_t toe,toc,ttr,top; /* Toe,Toc,T_trans,top */
                         /* SV orbit parameters */
-    double A,e,i0,OMG0,omg,M0,deln,OMGd,idot;
-    double crc,crs,cuc,cus,cic,cis;
-    double toes;        /* Toe (s) in week */
+	double A,e,i0,OMG0,omg,M0,deln,OMGd,idot;
+	double crc,crs,cuc,cus,cic,cis;
+	double toes;        /* Toe (s) in week */
+	double tops;        /* Top (s) in week */
     double fit;         /* fit interval (h) */
     double f0,f1,f2;    /* SV clock parameters (af0,af1,af2) */
     double tgd[7];      /* group delay parameters */
@@ -1042,6 +1076,20 @@ typedef struct {        /* solution status buffer type */
     solstat_t *data;    /* solution status data */
 } solstatbuf_t;
 
+typedef struct { /* QZSS L6 message type */
+    int prn;            /* satellite PRN number */
+    int type;           /* message type */
+    int alert;          /* alert flag */
+    uint8_t stat; /* signal tracking status */
+    uint8_t snr;  /* signal C/N0 (0.25 dBHz) */
+    uint32_t ttt;   /* tracking time (ms) */
+    uint8_t vendor_id;
+    uint8_t facility_id;
+    uint8_t subframe_length;
+    int nbit;
+    uint8_t msg[250]; /* L6 message data part 1695 bits */
+} l6msg_t;
+
 typedef struct {        /* RTCM control struct type */
     int staid;          /* station id */
     int stah;           /* station health */
@@ -1303,8 +1351,9 @@ typedef struct {        /* receiver raw data control type */
     int ephsat;         /* update satelle of ephemeris (0:no satellite) */
     int ephset;         /* update set of ephemeris (0-1) */
     sbsmsg_t sbsmsg;    /* SBAS message */
-    char msgtype[256];  /* last message type */
-    uint8_t subfrm[MAXSAT][380]; /* subframe buffer */
+	char msgtype[256];  /* last message type */
+	l6msg_t l6msg[NSATQZS*2];  /* QZSS L6 message */
+    uint8_t subfrm[MAXSAT][460]; /* subframe buffer */
     double lockt[MAXSAT][NFREQ+NEXOBS]; /* lock time (s) */
     double icpp[MAXSAT],off[MAXSAT],icpc; /* carrier params for ss2 */
     double prCA[MAXSAT],dpCA[MAXSAT]; /* L1/CA pseudrange/doppler for javad */
@@ -1524,6 +1573,7 @@ EXPORT double  utc2gmst (gtime_t t, double ut1_utc);
 EXPORT int read_leaps(const char *file);
 
 EXPORT int adjgpsweek(int week);
+EXPORT int adjgpsweek_8bit(int week);
 EXPORT uint32_t tickget(void);
 EXPORT void sleepms(int ms);
 
@@ -1694,18 +1744,28 @@ EXPORT uint32_t rtk_crc24q(const uint8_t *buff, int len);
 EXPORT uint16_t rtk_crc16 (const uint8_t *buff, int len);
 EXPORT int decode_word (uint32_t word, uint8_t *data);
 EXPORT int decode_frame(const uint8_t *buff, eph_t *eph, alm_t *alm,
-                        double *ion, double *utc);
+						double *ion, double *utc);
+EXPORT int decode_gps_cnav(const uint8_t *buff, eph_t *eph, alm_t *alm,
+						double *ion, double *utc, int sys);
+EXPORT int decode_gps_cnav2(const uint8_t *buff, eph_t *eph, alm_t *alm,
+						double *ion, double *utc, int mode);
 EXPORT int test_glostr(const uint8_t *buff);
 EXPORT int decode_glostr(const uint8_t *buff, geph_t *geph, double *utc);
 EXPORT int decode_bds_d1(const uint8_t *buff, eph_t *eph, double *ion,
-                         double *utc);
+						 double *utc);
 EXPORT int decode_bds_d2(const uint8_t *buff, eph_t *eph, double *utc);
+EXPORT int decode_bds_cnav1(const uint8_t *buff, eph_t *eph, double *ion, double *utc, int mode);
+EXPORT int decode_bds_cnav2(const uint8_t *buff, eph_t *eph, double *ion, double *utc);
+EXPORT int decode_bds_cnav3(const uint8_t *buff, eph_t *eph, double *ion, double *utc);
 EXPORT int decode_gal_inav(const uint8_t *buff, eph_t *eph, double *ion,
-                           double *utc);
+						   double *utc);
 EXPORT int decode_gal_fnav(const uint8_t *buff, eph_t *eph, double *ion,
-                           double *utc);
+						   double *utc);
+EXPORT int decode_gal_cnav(const uint8_t *buff, nav_t *nav);
 EXPORT int decode_irn_nav(const uint8_t *buff, eph_t *eph, double *ion,
-                          double *utc);
+						  double *utc);
+EXPORT int decode_irn_l1(const uint8_t *buff, eph_t *eph, double *ion,
+						  double *utc, int mode);
 EXPORT void adj_utcweek(gtime_t time, double *utc);
 EXPORT void set_ion_param(raw_t *raw, int sat, int navtype, double *ion);
 EXPORT void set_utc_param(raw_t *raw, int sat, int navtype, double *utc);

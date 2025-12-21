@@ -898,13 +898,14 @@ static int decode_L1nav(uint8_t *buff, int len, int sat, raw_t *raw)
     }
     return 0;
 }
-/* decode raw L2C CNAV data --------------------------------------------------*/
-static int decode_L2nav(uint8_t *buff, int len, int sat, raw_t *raw)
+/* decode raw L2C/L5 CNAV data ---------------------------------------------------*/
+static int decode_cnav(uint8_t *buff, int len, int sat, raw_t *raw)
 {
     uint8_t msg[1024]={0};
-    int i,j,preamb,prn,msgid,tow,alert;
+	int i,j,preamb,prn,msgid,tow,alert,ofst,sys=satsys(sat,NULL);
+    eph_t eph={0};
     
-    trace(3,"decode_L2nav len=%2d sat=%2d L5 CNAV\n",len,sat);
+    trace(3,"decode_cnav len=%2d sat=%2d L2C/L5 CNAV\n",len,sat);
     
     for (i=0;i<len;i++) for (j=0;j<4;j++) {
         msg[3-j+i*4]=buff[j+i*4];
@@ -917,47 +918,63 @@ static int decode_L2nav(uint8_t *buff, int len, int sat, raw_t *raw)
     alert =getbitu(msg,i, 1); i+= 1;
     
     if (preamb!=PREAMB_CNAV) {
-        trace(2,"javad *d sat=%2d L2 CNAV preamble error preamb=%02X\n",preamb);
+		trace(2,"javad *d sat=%2d CNAV preamble error preamb=%02X\n",preamb);
         return -1;
     }
-    trace(3,"L2CNAV: sat=%2d prn=%2d msgid=%2d tow=%6d alert=%d\n",sat,prn,
+    trace(3,"CNAV: sat=%2d prn=%2d msgid=%2d tow=%6d alert=%d\n",sat,prn,
           msgid,tow,alert);
-    
-    return 0;
-}
-/* decode raw L5 CNAV data ---------------------------------------------------*/
-static int decode_L5nav(uint8_t *buff, int len, int sat, raw_t *raw)
-{
-    uint8_t msg[1024]={0};
-    int i,j,preamb,prn,msgid,tow,alert;
-    
-    trace(3,"decode_L5nav len=%2d sat=%2d L5 CNAV\n",len,sat);
-    
-    for (i=0;i<len;i++) for (j=0;j<4;j++) {
-        msg[3-j+i*4]=buff[j+i*4];
+
+	switch (msgid) {
+		case 10: ofst=0;break;
+		case 11: ofst=1;break;
+		case 30:
+		case 31:
+		case 32:
+		case 33:
+		case 35:
+		case 37:
+		case 61: ofst=2;break;
+		default: return 0;
+	}
+	memcpy(raw->subfrm[sat-1]+SF_OFST_GPS_CNAV+ofst*35,msg,35);
+	if(!decode_gps_cnav(raw->subfrm[sat-1]+SF_OFST_GPS_CNAV,&eph,
+		NULL,NULL,NULL,sys))
+		return 0;
+
+	if (!strstr(raw->opt,"-EPHALL")) {
+		if (timediff(eph.toe,raw->nav.eph[sat-1+MAXSAT].toe)==0.0) return 0;
     }
-    i=0;
-    preamb=getbitu(msg,i, 8); i+= 8;
-    prn   =getbitu(msg,i, 6); i+= 6;
-    msgid =getbitu(msg,i, 6); i+= 6;
-    tow   =getbitu(msg,i,17); i+=17;
-    alert =getbitu(msg,i, 1); i+= 1;
-    
-    if (preamb!=PREAMB_CNAV) {
-        trace(2,"javad *d sat=%2d L5 CNAV preamble error preamb=%02X\n",preamb);
-        return -1;
-    }
-    trace(3,"L5CNAV: sat=%2d prn=%2d msgid=%2d tow=%6d alert=%d\n",sat,prn,
-          msgid,tow,alert);
-    
-    return 0;
+    eph.sat=sat;
+	raw->nav.eph[sat-1+MAXSAT]=eph;
+	raw->ephsat=sat;
+	raw->ephset=1;
+
+    return 2;
 }
 /* decode raw L1C CNAV2 data -------------------------------------------------*/
 static int decode_L1Cnav(uint8_t *buff, int len, int sat, raw_t *raw)
 {
-    trace(3,"javad *d len=%2d sat=%2d L1C CNAV2 unsupported\n",len,sat);
-    
-    return 0;
+	int i;
+	uint8_t *p=raw->buff+5;
+	eph_t eph={0};
+
+	trace(3,"javad *d len=%2d sat=%2d L1C CNAV2\n",len,sat);
+
+    /* copy data */
+	for (i=0,p+=6;i<57;i++,p+=4) {
+		setbitu(buff,32*i,32,U4(p));
+	}
+	if (!decode_gps_cnav2(buff, &eph, NULL, NULL, NULL, 1)) return 0;
+
+    if (!strstr(raw->opt,"-EPHALL")) {
+		if (timediff(eph.toe,raw->nav.eph[sat-1+MAXSAT*2].toe)==0.0) return 0;
+	}
+	eph.sat=sat;
+	raw->nav.eph[sat-1+MAXSAT*2]=eph;
+    raw->ephsat=sat;
+    raw->ephset=2;
+
+	return 2;
 }
 /* decode [*D] raw navigation data -------------------------------------------*/
 static int decode_nD(raw_t *raw, int sys)
@@ -1005,7 +1022,7 @@ static int decode_nd(raw_t *raw, int sys)
     time=U4(p); p+=4;
     type=U1(p); p+=1;
     len =U1(p); p+=1;
-    if (raw->len!=13+len*4) {
+    if (raw->len!=14+len*4) {
         trace(2,"javad nd length error: sys=%d len=%d\n",sys,raw->len);
         return -1;
     }
@@ -1021,8 +1038,8 @@ static int decode_nd(raw_t *raw, int sys)
     
     switch (type) {
         case 0: return decode_L1nav (p,len,sat,raw); /* L1  NAV */
-        case 1: return decode_L2nav (p,len,sat,raw); /* L2C CNAV */
-        case 2: return decode_L5nav (p,len,sat,raw); /* L5  CNAV */
+		case 1: return decode_cnav  (p,len,sat,raw); /* L2C CNAV */
+        case 2: return decode_cnav  (p,len,sat,raw); /* L5  CNAV */
         case 3: return decode_L1Cnav(p,len,sat,raw); /* L1C CNAV2 */
     }
     return 0;
@@ -1094,23 +1111,365 @@ static int decode_lD(raw_t *raw)
 /* decode [ED] Galileo raw navigation data -----------------------------------*/
 static int decode_ED(raw_t *raw)
 {
-    trace(3,"javad ED unsupported\n");
+    uint8_t *p=raw->buff+5;
+    char *msg;
+    int i,j,sat,prn,time,type,len,mt,flag=0;
+    uint8_t page;
+    static eph_t eph={0};
+    double ion[4]={0},utc[8]={0};
     
+    if (!checksum(raw->buff,raw->len)) {
+        trace(2,"javad ED checksum error: len=%d\n",raw->len);
+        return -1;
+    }
+
+    prn =U1(p); p+=1;
+    time=U4(p); p+=4;
+    type=U1(p)&0x7; p+=1; /* 0:I/NAV(E1B),1:F/NAV,2:I/NAV(E5B),6:C/NAV(E6B) */
+    len =U1(p); p+=1;
+
+    trace(3,"decode_ED: prn=%3d type=%1d\n",prn, type);
+
+    if (raw->len!=14+len) {
+        trace(2,"javad ED length error: len=%d\n",raw->len);
+        return -1;
+    }
+    if (raw->outtype) {
+        msg=raw->msgtype+strlen(raw->msgtype);
+        sprintf(msg," prn=%3d time=%7d type=%d",prn,time,type);
+    }
+    if (!(sat=satno(SYS_GAL,prn))) {
+        trace(2,"javad ED satellite error: prn=%d\n",prn);
+        return 0;
+    }
+    trace(4,"sat=%2d time=%7d type=%d len=%3d\n",sat,time,type,len);
+
+    /* E1B,E5B: I-NAV odd(120bits),even(120bits) */
+
+    if (type==0 || type==2) { /* I/NAV */
+    	page = getbitu(p,1,1);
+    	if (page==1) return 0; /* 0:normal,1:abnormal */
+
+    	i=2;
+    	mt = getbitu(p,i,6);
+    	if (mt<=10) {
+    		for (j=0;j<14;j++) { /* Data (1/2) */
+    			raw->subfrm[sat-1][16*mt+j]=getbitu(p,i,8); i+=8;
+    		}
+    		raw->subfrm[sat-1][16*mt+14]=getbitu(p,122,8); /* Data (2/2) */
+    		raw->subfrm[sat-1][16*mt+15]=getbitu(p,130,8);
+    		flag=1;
+    	}
+    	for (j=0;j<6;j++) {
+    		mt = getbitu(raw->subfrm[sat-1],128*j, 6);
+    		if (mt!=j) {
+    			flag=0; break;
+    		}
+    	}
+    	if (!flag) return 0; /* not ready for I/NAV ephemeris decoding */
+    } else if (type==1) { /* F/NAV 31 bytes x6 =186 bytes */
+    	i=0;
+    	mt = getbitu(p,i,6); i+=6;
+    	if (mt>=1 && mt<=6) {
+			setbitu(raw->subfrm[sat-1]+SF_OFST_GAL_FNAV,248*(mt-1),6,mt);
+    		for (j=0;j<208;j+=8) {
+    			setbitu(raw->subfrm[sat-1]+SF_OFST_GAL_FNAV,248*(mt-1)+j+6,8,getbitu(p,i,8)); i+=8;
+    		}
+    		flag=1;
+    		for (j=0;j<4;j++) {
+    			mt = getbitu(raw->subfrm[sat-1]+SF_OFST_GAL_FNAV,248*j, 6);
+    			if (mt!=j+1) {
+    				flag=0; break;
+    			}
+    		}
+    	}
+    	if (!flag) return 0; /* not ready for F/NAV ephemeris decoding */
+	} else if (type==6) { /* C/NAV (len=62) */
+        for (i=0;i<len;i++) {
+            raw->subfrm[sat-1][i+SF_OFST_GAL_CNAV]=U1(p+i);
+		}
+    }
+
+    switch (type) {
+        case 0: /* E1B  INAV */
+        case 2: /* E5b  INAV */
+            if (strstr(raw->opt,"-GALFNAV")) {
+                return 0;
+            }
+            decode_gal_inav(raw->subfrm[sat-1],&eph,ion,utc);
+            if (eph.sat!=sat) {
+                return 0;
+            }
+            eph.code|=(1<<type); /* data source: E1 */
+			adj_utcweek(raw->time,utc);
+			set_ion_param(raw,sat,NAV_GAL_INAV,ion);
+			set_utc_param(raw,sat,NAV_GAL_INAV,utc);
+            if (!strstr(raw->opt,"-EPHALL")) {
+                if (eph.code==raw->nav.eph[sat-1].code&&
+                    eph.iode==raw->nav.eph[sat-1].iode&&
+                    timediff(eph.toe,raw->nav.eph[sat-1].toe)==0.0&&
+                    timediff(eph.toc,raw->nav.eph[sat-1].toc)==0.0) return 0;
+            }
+            raw->nav.eph[sat-1]=eph;
+            raw->ephsat=sat;
+            raw->ephset=0; /* 0:I/NAV */
+            return 2;
+        case 1: /* E5a  FNAV */
+            if (strstr(raw->opt,"-GALINAV")) {
+                return 0;
+            }
+            decode_gal_fnav(raw->subfrm[sat-1]+176,&eph,ion,utc);
+            if (eph.sat!=sat) {
+                return 0;
+            }
+            eph.code=(1<<type); /* data source: E1 */
+			adj_utcweek(raw->time,utc);
+			set_ion_param(raw,sat,NAV_GAL_FNAV,ion);
+			set_utc_param(raw,sat,NAV_GAL_FNAV,utc);
+
+            if (!strstr(raw->opt,"-EPHALL")) {
+                if (eph.code==raw->nav.eph[sat-1].code&&
+                    eph.iode==raw->nav.eph[sat-1].iode&&
+                    timediff(eph.toe,raw->nav.eph[sat-1].toe)==0.0&&
+                    timediff(eph.toc,raw->nav.eph[sat-1].toc)==0.0) return 0;
+            }
+            raw->nav.eph[sat-1]=eph;
+            raw->ephsat=sat;
+            raw->ephset=1; /* F/NAV */
+            return 2;
+        case 6: /* E6 C/NAV page 492bits */
+        	return decode_gal_cnav(raw->subfrm[sat-1]+362,&raw->nav);
+        default: break;
+    }
+
     return 0;
 }
 /* decode [cd] Beidou raw navigation data ------------------------------------*/
 static int decode_cd(raw_t *raw)
 {
-    trace(3,"javad cd unsupported\n");
-    
-    return 0;
+    uint8_t *p=raw->buff+5;
+    static uint8_t subfrm[128];
+    char *msg;
+    int i,sat,prn,tow,type,len,otype=0,b2bq=0,signal,id,page;
+    uint32_t tmp;
+    static eph_t eph={0};
+    double ion[9]={0},utc[9]={0};
+
+    if (!checksum(raw->buff,raw->len)) {
+        trace(2,"javad cd checksum error: len=%d\n",raw->len);
+        return -1;
+    }
+
+    prn =U1(p); p+=1;
+    tow=U4(p); p+=4;	/* Beidou time of receiving message */
+    type=U1(p); p+=1;
+    otype = (type>>7)&1; /* 1:GEO */
+    b2bq = (type>>6)&1;  /* 1: B2b data decoded from B2bq */
+    signal = type&0x3f;
+    /*
+     * type of data:
+     *  b0-5: signal type: 0:B1,1:B2,2:B3,3:B1C,5:B2a,6:B2b
+     *  b6: 1: B2b data was decoded from B2bq (D2)
+     *  b7: 1: D2 structure from GEO
+     */
+    len =U1(p); p+=1;
+
+    trace(3,"decode_cd: len=%3d prn=%3d time=%d type=%x\n",len,prn,tow,type);
+
+    if (raw->len!=14+len*4) {
+        trace(2,"javad cd length error: len=%d\n",raw->len);
+        return -1;
+    }
+    if (raw->outtype) {
+        msg=raw->msgtype+strlen(raw->msgtype);
+        sprintf(msg," prn=%3d tow-bdt=%7d type=%d B2bq:%d D2-GEO:%d",
+                prn,tow,signal,b2bq,otype);
+    }
+    if (!(raw->ephsat=sat=satno(SYS_CMP,prn))) {
+        trace(2,"javad cd satellite error: prn=%d\n",prn);
+        return 0;
+    }
+
+    for (i=0;i<len;i++,p+=4) {
+        setbitu(subfrm,32*i,32,U4(p));
+    }
+    switch (signal) {
+        case 0: /* B1I D1/D2 */
+        case 1: /* B2I D1/D2 */
+        case 2: /* B3I D1/D2 */
+            id = getbitu(subfrm,15,3);
+            if (otype==0) { /* MEO/IGSO */
+                if (id==0||id>5) return 0;
+                memcpy(raw->subfrm[sat-1]+(id-1)*38,subfrm,38);
+        	    if(!decode_bds_d1(raw->subfrm[sat-1],&eph,NULL,NULL)) return 0;
+            } else { /* GEO */
+                if (id==1) { /* ephemeris */
+                    page = getbitu(subfrm,42,4);
+                    if (page==0||page>10) return 0;
+                    memcpy(raw->subfrm[sat-1]+(page-1)*38,subfrm,38);
+                } else if (id==5) { /* almanac, iono, utc */
+                    page = getbitu(subfrm,43,7);
+                    if (page!=102) return 0;
+                    memcpy(raw->subfrm[sat-1]+10*38,subfrm,38);
+                } else { /* SF2/3/4 diff-correction, integrity */
+                    return 0; /* not supported */
+                }
+                if(!decode_bds_d2(raw->subfrm[sat-1],&eph,NULL)) return 0;
+            }
+            if (!strstr(raw->opt,"-EPHALL")) {
+                if (eph.iode==raw->nav.eph[sat-1].iode&&
+                    timediff(eph.toe,raw->nav.eph[sat-1].toe)==0.0&&
+                    timediff(eph.toc,raw->nav.eph[sat-1].toc)==0.0) return 0;
+            }
+			adj_utcweek(raw->time,utc);
+			set_ion_param(raw,sat,NAV_BDS_D1,ion);
+			set_utc_param(raw,sat,NAV_BDS_D1,utc);
+            eph.sat=sat;
+            raw->nav.eph[sat-1]=eph;
+            raw->ephsat=sat;
+            raw->ephset=(otype==0)?NAV_BDS_D1:NAV_BDS_D2;
+            return 2;
+        case 3: /* B1C B-CNAV1 */
+            eph.sat=sat;
+        	if(!decode_bds_cnav1(subfrm,&eph,NULL,NULL,1)) return 0;
+            if (!strstr(raw->opt,"-EPHALL")) {
+                if (eph.iode==raw->nav.eph[sat-1].iode&&
+                    timediff(eph.toe,raw->nav.eph[sat-1].toe)==0.0&&
+                    timediff(eph.toc,raw->nav.eph[sat-1].toc)==0.0) return 0;
+            }
+            adj_utcweek(raw->time,utc);
+			set_ion_param(raw,sat,NAV_BDS_CNAV1,ion);
+			set_utc_param(raw,sat,NAV_BDS_CNAV1,utc);
+            raw->nav.eph[sat-1]=eph;
+            raw->ephsat=sat;
+            raw->ephset=NAV_BDS_CNAV1;
+        	return 2;
+        case 5: /* B2a B-CNAV2 */
+            id = getbitu(subfrm,6,6);
+            if (id==10||id==11) {
+                memcpy(raw->subfrm[sat-1]+(id-10)*36+190,subfrm,len*4);
+            } else if (id>=30&&id<40) {
+                memcpy(raw->subfrm[sat-1]+36*2+190,subfrm,len*4);
+            } else if (id==40) {
+                memcpy(raw->subfrm[sat-1]+36*3+190,subfrm,len*4);
+            }
+            if (!decode_bds_cnav2(raw->subfrm[sat-1]+190,&eph,NULL,NULL)) return 0;
+            if (!strstr(raw->opt,"-EPHALL")) {
+                if (eph.iode==raw->nav.eph[sat-1].iode&&
+                    timediff(eph.toe,raw->nav.eph[sat-1].toe)==0.0&&
+                    timediff(eph.toc,raw->nav.eph[sat-1].toc)==0.0) return 0;
+            }
+			adj_utcweek(raw->time,utc);
+			set_ion_param(raw,sat,NAV_BDS_CNAV2,ion);
+			set_utc_param(raw,sat,NAV_BDS_CNAV2,utc);
+            raw->nav.eph[sat-1]=eph;
+            raw->ephsat=sat;
+            raw->ephset=NAV_BDS_CNAV2;
+        	return 2;
+        case 6: /* B2b */
+            if (prn>=59) { /* GEO PPP */
+#ifdef USE_BDS_PPP
+                if (raw->time.time==0.0) return 0;
+                if (prn<=5 || prn>=59) { /* GEO: B2bI PPP */
+                    if (tow!=tow_p)
+                        decode_bds_ppp(raw->subfrm[sat-1],raw);
+                    tow_p=tow;
+                }
+#endif
+                return 5;
+            } else {    /* B2b C-NAV3 */
+                id = getbitu(subfrm,0,6);
+                if (id==10) {
+                    memcpy(raw->subfrm[sat-1]+334,subfrm,64);
+                } else if (id==30) {
+                    memcpy(raw->subfrm[sat-1]+334+64,subfrm,64);
+                } else {
+                    return 0;
+                }
+                if (!decode_bds_cnav3(raw->subfrm[sat-1]+334,&eph,NULL,NULL)) return 0;
+                if (!strstr(raw->opt,"-EPHALL")) {
+                    if (timediff(eph.toe,raw->nav.eph[sat-1].toe)==0.0&&
+                        timediff(eph.toc,raw->nav.eph[sat-1].toc)==0.0) return 0;
+                }
+                /*adj_utcweek(raw->time,utc);*/
+				set_ion_param(raw,sat,NAV_BDS_CNAV3,ion);
+				set_utc_param(raw,sat,NAV_BDS_CNAV3,utc);
+                eph.sat=sat;
+                raw->nav.eph[sat-1]=eph;
+                raw->ephsat=sat;
+                raw->ephset=NAV_BDS_CNAV3;
+                return 2;
+            }
+        default: break;
+    }
+
+     return 0;
 }
 /* decode [id] IRNSS raw navigation data -------------------------------------*/
 static int decode_id(raw_t *raw)
 {
-    trace(3,"javad id unsupported\n");
-    
-    return 0;
+	int i,prn,time,type,len,sat,id,tow,stat;
+	char *msg;
+	uint8_t *p=raw->buff+5;
+	static uint8_t subfrm[40];
+    static eph_t eph={0};
+    double ion[8]={0},utc[9]={0};
+
+    if (!checksum(raw->buff,raw->len)) {
+        trace(2,"javad id checksum error: len=%d\n",raw->len);
+        return -1;
+    }
+
+    prn=U1(p); p+=1;
+    time=U4(p); p+=4;
+    type=U1(p); p+=1; /* 0:L5 */
+    len=U1(p); p+=1;
+
+    if (raw->len!=len*4+14) {
+        trace(2,"javad id length error: len=%d\n",raw->len);
+        return -1;
+    }
+
+    if (raw->outtype) {
+        msg=raw->msgtype+strlen(raw->msgtype);
+        sprintf(msg," prn=%3d time=%6d type=%d",prn,time,type);
+    }
+
+    if (!(sat=satno(SYS_IRN,prn))) {
+        trace(2,"javad id satellite error: prn=%d\n",prn);
+        return 0;
+    }
+
+    /* copy data */
+    for (i=0;i<len;i++,p+=4) {
+        setbitu(subfrm,32*i,32,U4(p));
+    }
+
+    tow=getbitu(subfrm,8,17)*12;
+    id = getbitu(subfrm,27,2);
+
+    trace(3,"decode_id: prn=%2d time=%7d type=%d tow=%6d id=%2d\n",prn,time,type,tow,id);
+
+    memcpy(raw->subfrm[sat-1]+id*37,subfrm,37);
+
+    if(!decode_irn_nav(raw->subfrm[sat-1],&eph,NULL,NULL)) return 0;
+    if(decode_irn_nav(raw->subfrm[sat-1],NULL,ion,NULL)) {
+		set_ion_param(raw,sat,NAV_IRN_LNAV,ion);
+    }
+    if((stat=decode_irn_nav(raw->subfrm[sat-1],NULL,NULL,utc))) {
+        adj_utcweek(raw->time,utc);
+		set_utc_param(raw,sat,NAV_IRN_LNAV,utc);
+    }
+    if (!strstr(raw->opt,"-EPHALL")) {
+        if (eph.iode==raw->nav.eph[sat-1].iode&&
+            timediff(eph.toe,raw->nav.eph[sat-1].toe)==0.0&&
+            timediff(eph.toc,raw->nav.eph[sat-1].toc)==0.0) return 0;
+    }
+    eph.sat = sat;
+    raw->nav.eph[sat-1]=eph;
+    raw->ephsat=sat;
+    raw->ephset=0;
+    return 2;
 }
 /* decode [WD] SBAS raw navigation data --------------------------------------*/
 static int decode_WD(raw_t *raw)

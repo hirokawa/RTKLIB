@@ -46,18 +46,28 @@
 #define SBF_MEASEPOCH   4027    /* SBF GNSS measurements */
 #define SBF_MEASEXTRA   4000    /* SBF GNSS measurements extra info */
 #define SBF_GPSRAWCA    4017    /* SBF GPS C/A subframe */
+#define SBF_GPSRAWL2C   4018    /* SBF GPS L2C subframe */
+#define SBF_GPSRAWL5    4019    /* SBF GPS L5 subframe */
+#define SBF_GEORAWL1    4020    /* SBF SBAS L1 navigation frame */
 #define SBF_GEORAWL5    4021    /* SBF SBAS L5 navitation frame */
-#define SBF_GLORAWCA    4026    /* SBF GLONASS L1CA or L2CA navigation string */
 #define SBF_GALRAWFNAV  4022    /* SBF Galileo F/NAV navigation page */
 #define SBF_GALRAWINAV  4023    /* SBF Galileo I/NAV navigation page */
 #define SBF_GALRAWCNAV  4024    /* SBF Galileo C/NAV navigation page */
-#define SBF_GEORAWL1    4020    /* SBF SBAS L1 navigation frame */
+#define SBF_GLORAWCA    4026    /* SBF GLONASS L1CA or L2CA navigation string */
 #define SBF_BDSRAW      4047    /* SBF BDS navigation page */
-#define SBF_QZSRAWL1CA  4066    /* SBF QZSS C/A subframe */
+#define SBF_QZSRAWL1CA  4066    /* SBF QZSS L1C/A subframe */
+#define SBF_QZSRAWL2C   4067    /* SBF QZSS L2C subframe */
+#define SBF_QZSRAWL5    4068    /* SBF QZSS L5 subframe */
+#define SBF_QZSRAWL6    4069    /* SBF QZSS L6 subframe */
 #define SBF_NAVICRAW    4093    /* SBF NavIC/IRNSS subframe */
+#define SBF_BDSRAWB1C   4218    /* SBF BDS B1C navigation frame */
+#define SBF_BDSRAWB2A   4219    /* SBF BDS B2a navigation frame */
+#define SBF_GPSRAWL1C   4221    /* SBF GPS L1C subframe */
+#define SBF_QZSRAWL1C   4227    /* SBF QZSS L1C subframe */
 #define SBF_QZSRAWL1S   4228    /* SBF QZSS L1S subframe */
-#define SBF_BDSRAWB2B   4242    /* SBF BDS B2B subframe */
+#define SBF_BDSRAWB2B   4242    /* SBF BDS B2b subframe */
 #define SBF_QZSRAWL5S   4246    /* SBF QZSS L5S subframe */
+#define SBF_NAVICRAWL1  4262    /* SBF NavIC L1 subframe */
 #define SBF_QZSRAWL6D   4270    /* SBF QZSS L6D subframe */
 #define SBF_QZSRAWL6E   4271    /* SBF QZSS L6E subframe */
 #define SBF_PVTGEODETIC 4007    /* SBF GNSS Geodetic position/velocity/time */
@@ -400,11 +410,6 @@ static int decode_rawca(raw_t *raw, int sys)
     }
     return 0;
 }
-/* decode SBF GPS C/A subframe -----------------------------------------------*/
-static int decode_gpsrawca(raw_t *raw)
-{
-    return decode_rawca(raw,SYS_GPS);
-}
 /* decode SBF GLONASS L1CA or L2CA navigation string -------------------------*/
 static int decode_glorawca(raw_t *raw)
 {
@@ -510,10 +515,10 @@ static int decode_galrawfnav(raw_t *raw)
         return -1;
     }
     /* save 244 bits page (31 bytes * 6 page) */
-    memcpy(raw->subfrm[sat-1]+128+(type-1)*31,buff,31);
+    memcpy(raw->subfrm[sat-1]+SF_OFST_GAL_FNAV+(type-1)*31,buff,31);
     
     if (type!=4) return 0;
-    if (!decode_gal_fnav(raw->subfrm[sat-1]+128,&eph,ion,utc)) return 0;
+    if (!decode_gal_fnav(raw->subfrm[sat-1]+SF_OFST_GAL_FNAV,&eph,ion,utc)) return 0;
     
     if (eph.sat!=sat) {
         trace(2,"sbf galrawfnav satellite error: sat=%d %d\n",sat,eph.sat);
@@ -681,7 +686,7 @@ static int decode_bdsraw(raw_t *raw)
         return -1;
     }
     if (prn>=6&&prn<=58) { /* IGSO/MEO */
-        memcpy(raw->subfrm[sat-1]+(id-1)*38,buff,38);
+		memcpy(raw->subfrm[sat-1]+(id-1)*38,buff,38);
         
         if (id==3) {
             if (!decode_bds_d1(raw->subfrm[sat-1],&eph,NULL,NULL)) return 0;
@@ -719,10 +724,343 @@ static int decode_bdsraw(raw_t *raw)
     raw->ephset=0;
     return 2;
 }
-/* decode SBF QZS C/A subframe -----------------------------------------------*/
-static int decode_qzsrawl1ca(raw_t *raw)
+/* decode SBF BDS CNAV1 navigation frame -------------------------------------*/
+static int decode_bdsrawcnav1(raw_t *raw)
 {
-    return decode_rawca(raw,SYS_QZS);
+    eph_t eph={0};
+    double ion[8],utc[8];
+    uint8_t *p=raw->buff+14,buff[228];
+    int i,id,svid,sat,prn,pgn;
+
+    if (raw->len<248) {
+		trace(2,"sbf bdsrawcnav1 length error: len=%d\n",raw->len);
+        return -1;
+    }
+    svid=U1(p);
+    if (!(sat=svid2sat(svid))||satsys(sat,&prn)!=SYS_CMP) {
+        trace(2,"sbf bdsrawcnav1 svid error: svid=%d\n",svid);
+        return -1;
+    }
+    if (!U1(p+1)||!U1(p+2)) {
+        trace(3,"sbf bdsrawcnav1 parity/crc error: prn=%d\n",prn);
+        return 0;
+    }
+    if (raw->outtype) {
+        sprintf(raw->msgtype+strlen(raw->msgtype)," prn=%d",prn);
+    }
+    for (i=0,p+=6;i<57;i++,p+=4) {
+        setbitu(buff,32*i,32,U4(p));
+	}
+
+	if (!decode_bds_cnav1(buff,&eph,NULL,NULL,0)) return 0;
+
+	id=getbitu(buff,1272,6); /* subframe 3 page ID */
+	if (id==1) {  /* iono/UTC */
+		if (!decode_bds_cnav1(raw->subfrm[sat-1],NULL,ion,utc,0)) return 0;
+		set_ion_param(raw,sat,NAV_BDS_CNAV1,ion);
+		set_utc_param(raw,sat,NAV_BDS_CNAV1,utc);
+        /*return 9;*/
+	}
+
+    if (!strstr(raw->opt,"-EPHALL")) {
+		if (timediff(eph.toe,raw->nav.eph[sat-1+MAXSAT].toe)==0.0) return 0;
+    }
+    eph.sat=sat;
+	raw->nav.eph[sat-1+MAXSAT]=eph;
+	raw->ephsat=sat;
+	raw->ephset=1;
+    return 2;
+}
+/* decode SBF BDS CNAV2 navigation frame -------------------------------------*/
+static int decode_bdsrawcnav2(raw_t *raw)
+{
+	eph_t eph={0};
+	double ion[8],utc[8];
+	uint8_t *p=raw->buff+14,buff[72];
+	int i,id,svid,sat,prn,pgn,ofst;
+
+	if (raw->len<92) {
+		trace(2,"sbf bdsrawcnav2 length error: len=%d\n",raw->len);
+		return -1;
+	}
+	svid=U1(p);
+	if (!(sat=svid2sat(svid))||satsys(sat,&prn)!=SYS_CMP) {
+		trace(2,"sbf bdsrawcnav2 svid error: svid=%d\n",svid);
+		return -1;
+	}
+	if (!U1(p+1)) {
+        trace(3,"sbf bdsrawcnav2 parity/crc error: prn=%d\n",prn);
+        return 0;
+    }
+    if (raw->outtype) {
+		sprintf(raw->msgtype+strlen(raw->msgtype)," prn=%d",prn);
+    }
+    for (i=0,p+=6;i<18;i++,p+=4) {
+        setbitu(buff,32*i,32,U4(p));
+	}
+
+	id=getbitu(buff,6,6); /* frame ID */
+
+	switch (id) {
+		case 10: ofst=0;break;
+		case 11: ofst=1;break;
+		case 30: ofst=2;break;
+		case 40: ofst=3;break;
+		default: return 0;
+	}
+
+	memcpy(raw->subfrm[sat-1]+SF_OFST_BDS_CNAV2+ofst*36,buff,36);
+
+	if (id==30) {
+		if (!decode_bds_cnav2(raw->subfrm[sat-1]+SF_OFST_BDS_CNAV2,&eph,NULL,NULL)) return 0;
+	} else {
+        return 0;
+    }
+
+    if (!strstr(raw->opt,"-EPHALL")) {
+		if (timediff(eph.toe,raw->nav.eph[sat-1+MAXSAT*2].toe)==0.0) return 0;
+    }
+    eph.sat=sat;
+	raw->nav.eph[sat-1+MAXSAT*2]=eph;
+    raw->ephsat=sat;
+	raw->ephset=2;
+    return 2;
+}
+/* decode SBF BDS CNAV3 navigation frame -------------------------------------*/
+static int decode_bdsrawcnav3(raw_t *raw)
+{
+	eph_t eph={0};
+	double ion[8],utc[8];
+	uint8_t *p=raw->buff+14,buff[124];
+	uint32_t tmp;
+	int i,id,svid,sat,prn,pgn,ofst;
+
+	if (raw->len<144) {
+		trace(2,"sbf bdsrawcnav3 length error: len=%d\n",raw->len);
+		return -1;
+	}
+	svid=U1(p);
+	if (!(sat=svid2sat(svid))||satsys(sat,&prn)!=SYS_CMP) {
+		trace(2,"sbf bdsrawcnav3 svid error: svid=%d\n",svid);
+		return -1;
+	}
+	if (!U1(p+1)) {
+		trace(3,"sbf bdsrawcnav3 parity/crc error: prn=%d\n",prn);
+        return 0;
+    }
+    if (raw->outtype) {
+		sprintf(raw->msgtype+strlen(raw->msgtype)," prn=%d",prn);
+	}
+
+	if (prn>=58) { /* skip GEO */
+		return 0;
+	}
+
+    for (i=0,p+=6;i<31;i++,p+=4) {
+		setbitu(buff,32*i,32,U4(p));
+	}
+
+	if(getbitu(buff,0,6)!=prn) {
+		trace(3,"sbf bdsrawcnav3 prn unmatch: prn=%d\n",prn);
+        return 0;
+    }
+
+	id=getbitu(buff,12,6); /* frame ID */
+
+	switch (id) {
+		case 10: ofst=0;break;
+		case 30: ofst=1;break;
+		default: return 0;
+	}
+
+	for (i=0;i<61;i++) {
+		raw->subfrm[sat-1][SF_OFST_BDS_CNAV3+ofst*64+i]=getbitu(buff,12+i*8,8);
+	}
+
+   	/*memcpy(raw->subfrm[sat-1]+SF_OFST_BDS_CNAV3+(id-1)*64,buff,64);*/
+
+	if (id==30) {
+		if (!decode_bds_cnav3(raw->subfrm[sat-1]+SF_OFST_BDS_CNAV3,&eph,
+			NULL,NULL)) return 0;
+	} else {
+        return 0;
+    }
+
+    if (!strstr(raw->opt,"-EPHALL")) {
+		if (timediff(eph.toe,raw->nav.eph[sat-1+MAXSAT*3].toe)==0.0) return 0;
+    }
+    eph.sat=sat;
+	raw->nav.eph[sat-1+MAXSAT*3]=eph;
+    raw->ephsat=sat;
+	raw->ephset=3;
+    return 2;
+}
+/* decode SBF GPS/QZS CNAV(L2C/L5) subframe ----------------------------------*/
+static int decode_gpsrawcnav(raw_t *raw, int sys)
+{
+    uint8_t *p=(raw->buff)+14;
+	int i,prn,sat,id,ofst=-1;
+	uint8_t viterbi_cnt,src,ch;
+	uint8_t buff[40];
+	uint32_t tmp;
+    eph_t eph={0};
+
+    if (raw->len!=60)
+    {
+		trace(3,"SBF decode_gpsrawcnav: Block length mismatch (60) %d\n", raw->len);
+		return -1;
+    }
+
+	sat=svid2sat(U1(p));
+	if (sys!=satsys(sat,&prn)) {
+		trace(2,"SBF decode_gpsrawcnav: prn out of range: %3d\n",prn); return 0;
+	}
+	if (U1(p+1)!=1) {
+		trace(2,"SBF decode_gpsrawcnav: crc_pass failed\n"); return 0;
+	}
+	/* copy data */
+	for (i=0,p+=6;i<10;i++,p+=4) {
+		setbitu(buff,32*i,32,U4(p));
+	}
+
+	id=getbitu(buff, 14, 6);
+	switch (id) {
+		case 10: ofst=0;break;
+		case 11: ofst=1;break;
+		case 30:
+		case 31:
+		case 32:
+		case 33:
+		case 35:
+		case 37:
+		case 61: ofst=2;break;
+		default: return 0;
+	}
+	memcpy(raw->subfrm[sat-1]+SF_OFST_GPS_CNAV+ofst*35,buff,35);
+	if(!decode_gps_cnav(raw->subfrm[sat-1]+SF_OFST_GPS_CNAV,&eph,NULL,NULL,NULL,sys))
+        return 0;
+
+	if (!strstr(raw->opt,"-EPHALL")) {
+		if (timediff(eph.toe,raw->nav.eph[sat-1+MAXSAT].toe)==0.0) return 0;
+    }
+    eph.sat=sat;
+	raw->nav.eph[sat-1+MAXSAT]=eph;
+	raw->ephsat=sat;
+	raw->ephset=1;
+
+    return 2;
+}
+/* decode SBF GPS/QZS CNAV2(L1C) subframe ------------------------------------*/
+static int decode_gpsrawcnav2(raw_t *raw, int sys)
+{
+	uint8_t *p=(raw->buff)+8;
+	int i,prn,sat;
+	uint8_t viterbi_cnt,src,ch,crc[2],svid;
+	uint8_t buff[228];
+	uint16_t week;
+	uint32_t tmp;
+	double tow;
+    eph_t eph={0};
+
+	if (raw->len!=248)
+	{
+		trace(3,"SBF decode_gpsrawcnav2: Block length mismatch (248) %d\n", raw->len);
+		return -1;
+	}
+
+	tow = U4(p)*0.001;p+=4;
+	week = U2(p);p+=2;
+	sat=svid2sat(U1(p));
+	if (sys!=satsys(sat,&prn)) {
+		trace(2,"SBF decode_gpsrawcnav2: prn out of range: %3d\n",prn); return 0;
+	}
+
+	if (U1(p+1)!=1||U1(p+2)!=1) {
+		trace(2,"SBF decode_gpsrawcnav2: crc_pass failed\n"); return 0;
+	}
+
+    /* copy data */
+	for (i=0,p+=6;i<57;i++,p+=4) {
+		setbitu(buff,32*i,32,U4(p));
+	}
+	if (!decode_gps_cnav2(buff, &eph, NULL, NULL, NULL, 0)) return 0;
+
+    if (!strstr(raw->opt,"-EPHALL")) {
+		if (timediff(eph.toe,raw->nav.eph[sat-1+MAXSAT*2].toe)==0.0) return 0;
+	}
+	eph.sat=sat;
+	raw->nav.eph[sat-1+MAXSAT*2]=eph;
+    raw->ephsat=sat;
+    raw->ephset=2;
+
+    return 2;
+}
+/* decode SBF raw nav message for QZSS L6 */
+static int decode_qzsrawl6(raw_t *raw){
+
+    uint8_t *p=(raw->buff)+14;
+    uint8_t buff[63*4];
+    int i,j,id,prn;
+    uint8_t parity,rscnt,ch;
+    uint32_t tmp,preamb;
+
+    if (raw->len!=272)
+    {
+        trace(1,"SBF decode_qzsrawl6: Block length mismatch (272) %d\n", raw->len);
+        return -1;
+    }
+
+    prn = (U1(p)-180)+192;
+    if (prn<MINPRNQZS && prn>MAXPRNQZS) {
+        trace(2,"SBF decode_qzsrawl6: sat out of range: %3d\n",prn); return 0;
+    }
+#if 0
+    id=prn-MINPRNQZS;
+#else
+    id=0;
+#endif
+    parity = U1(p+1);
+    if (parity != 1) {
+        trace(2,"SBF decode_qzssrawl6: parity failed\n"); return 0;
+    }
+    rscnt = U1(p+2);
+    ch = U1(p+5);
+
+    /* copy data */
+    for (i=0;i<63;i++)
+    {
+        tmp = U4(p+6+i*4);
+        buff[4*i]=(tmp>>24) & 0xff;
+        buff[4*i+1]=(tmp>>16) & 0xff;
+        buff[4*i+2]=(tmp>>8) & 0xff;
+        buff[4*i+3]=(tmp>>0) & 0xff;
+    }
+
+    i=0;
+    preamb   =getbitu(buff,i,32); i+=32;
+    if (preamb!=0x1ACFFC1Du) {
+        trace(1,"SBF decode_qzsrawl6: L6 preamble error: preamb=%08X\n",preamb);
+        return 0;
+    }
+    raw->l6msg[id].prn  =getbitu(buff,i, 8); i+= 8;
+    raw->l6msg[id].type =getbitu(buff,i, 8); i+= 8;
+    raw->l6msg[id].alert=getbitu(buff,i, 1); i+= 1;
+#if 0
+    for (j=0;j<212;j++) {
+        raw->l6msg[id].msg[j]=(uint8_t)getbitu(buff,i,8); i+=8;
+    }
+    raw->l6msg[id].msg[211]&=0xFE;
+#else
+    for (j=0,i=0;j<250;j++) {
+        raw->l6msg[id].msg[j]=(uint8_t)getbitu(buff,i,8); i+=8;
+    }
+#endif
+    if (raw->outtype) {
+        sprintf(raw->msgtype,"QZSRAWL6 (%4d): prn=%3d ch=%02x type=%d alert=%d",
+                raw->len,prn,ch,raw->l6msg[id].type,raw->l6msg[id].alert);
+    }
+
+    return 5;
 }
 /* decode SBF NavIC/IRNSS subframe -------------------------------------------*/
 static int decode_navicraw(raw_t *raw)
@@ -785,6 +1123,53 @@ static int decode_navicraw(raw_t *raw)
     }
     return 0;
 }
+/* decode SBF NavIC L1 navigation frame -------------------------------------*/
+static int decode_navicrawl1(raw_t *raw)
+{
+    eph_t eph={0};
+    double ion[8],utc[8];
+    uint8_t *p=raw->buff+14,buff[228];
+    int i,id,svid,sat,prn,pgn;
+
+    if (raw->len<248) {
+		trace(2,"sbf navicrawl1 length error: len=%d\n",raw->len);
+        return -1;
+    }
+    svid=U1(p);
+	if (!(sat=svid2sat(svid))||satsys(sat,&prn)!=SYS_IRN) {
+		trace(2,"sbf navicrawl1 svid error: svid=%d\n",svid);
+        return -1;
+    }
+    if (!U1(p+1)||!U1(p+2)) {
+        trace(3,"sbf navicrawl1 parity/crc error: prn=%d\n",prn);
+        return 0;
+    }
+    if (raw->outtype) {
+        sprintf(raw->msgtype+strlen(raw->msgtype)," prn=%d",prn);
+    }
+    for (i=0,p+=6;i<57;i++,p+=4) {
+        setbitu(buff,32*i,32,U4(p));
+	}
+
+	if (!decode_irn_l1(buff,&eph,NULL,NULL,0)) return 0;
+
+	id=getbitu(buff,1272,6); /* subframe 3 page ID */
+	if (id==1) {  /* iono/UTC */
+		if (!decode_bds_cnav1(raw->subfrm[sat-1],NULL,ion,utc,0)) return 0;
+		set_ion_param(raw,sat,NAV_BDS_CNAV1,ion);
+		set_utc_param(raw,sat,NAV_BDS_CNAV1,utc);
+        /*return 9;*/
+	}
+
+    if (!strstr(raw->opt,"-EPHALL")) {
+		if (timediff(eph.toe,raw->nav.eph[sat-1+MAXSAT].toe)==0.0) return 0;
+    }
+    eph.sat=sat;
+	raw->nav.eph[sat-1+MAXSAT]=eph;
+	raw->ephsat=sat;
+	raw->ephset=1;
+    return 2;
+}
 /* decode SBF block ----------------------------------------------------------*/
 static int decode_sbf(raw_t *raw)
 {
@@ -815,21 +1200,31 @@ static int decode_sbf(raw_t *raw)
     }
     switch (type) {
         case SBF_MEASEPOCH : return decode_measepoch (raw);
-        case SBF_MEASEXTRA : return decode_measextra (raw);
-        case SBF_GPSRAWCA  : return decode_gpsrawca  (raw);
+		case SBF_MEASEXTRA : return decode_measextra (raw);
+		case SBF_GPSRAWCA  : return decode_rawca(raw,SYS_GPS);
         case SBF_GLORAWCA  : return decode_glorawca  (raw);
         case SBF_GALRAWFNAV: return decode_galrawfnav(raw);
         case SBF_GALRAWINAV: return decode_galrawinav(raw);
         case SBF_GEORAWL1  : return decode_georawl1  (raw);
         case SBF_BDSRAW    : return decode_bdsraw    (raw);
-		case SBF_QZSRAWL1CA: return decode_qzsrawl1ca(raw);
+		case SBF_QZSRAWL1CA: return decode_rawca(raw,SYS_QZS);
 		case SBF_NAVICRAW  : return decode_navicraw  (raw);
+		case SBF_NAVICRAWL1: return decode_navicrawl1 (raw);
+		case SBF_GPSRAWL2C : return decode_gpsrawcnav (raw,SYS_GPS);
+		case SBF_GPSRAWL5  : return decode_gpsrawcnav (raw,SYS_GPS);
+		case SBF_GPSRAWL1C : return decode_gpsrawcnav2(raw,SYS_GPS);
 		case SBF_GEORAWL5  : return 0;
+		case SBF_QZSRAWL2C : return decode_gpsrawcnav (raw,SYS_QZS);
+		case SBF_QZSRAWL5  : return decode_gpsrawcnav (raw,SYS_QZS);
+		case SBF_QZSRAWL1C : return decode_gpsrawcnav2(raw,SYS_QZS);
 		case SBF_QZSRAWL1S : return 0;
 		case SBF_QZSRAWL5S : return 0;
+		case SBF_QZSRAWL6  : return decode_qzsrawl6  (raw);
 		case SBF_QZSRAWL6D : return 0;
 		case SBF_QZSRAWL6E : return 0;
-		case SBF_BDSRAWB2B : return 0;
+		case SBF_BDSRAWB1C : return decode_bdsrawcnav1(raw);
+		case SBF_BDSRAWB2A : return decode_bdsrawcnav2(raw);
+		case SBF_BDSRAWB2B : return decode_bdsrawcnav3(raw);
 		case SBF_GALRAWCNAV: return 0;
 		case SBF_PVTGEODETIC : return 0;
 		case SBF_LBANDTRACKERSTATUS : return 0;
