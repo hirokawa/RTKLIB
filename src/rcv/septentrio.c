@@ -332,9 +332,10 @@ static int decode_measextra(raw_t *raw)
 /* decode ephemeris ----------------------------------------------------------*/
 static int decode_eph(raw_t *raw, int sat)
 {
+    int sys=satsys(sat,NULL);
     eph_t eph={0};
     
-    if (!decode_frame(raw->subfrm[sat-1],&eph,NULL,NULL,NULL)) return 0;
+    if (!decode_gps_lnav(raw->subfrm[sat-1],&eph,NULL,NULL,NULL,sys)) return 0;
     
     if (!strstr(raw->opt,"-EPHALL")) {
         if (eph.iode==raw->nav.eph[sat-1].iode&&
@@ -354,7 +355,7 @@ static int decode_ionutc(raw_t *raw, int sat)
     double ion[8],utc[8];
     int sys=satsys(sat,NULL);
     
-    if (!decode_frame(raw->subfrm[sat-1],NULL,NULL,ion,utc)) return 0;
+    if (!decode_gps_lnav(raw->subfrm[sat-1],NULL,NULL,ion,utc,sys)) return 0;
     
     adj_utcweek(raw->time,utc);
 	if (sys==SYS_QZS) {
@@ -693,8 +694,8 @@ static int decode_bdsraw(raw_t *raw)
         }
         else if (id==5) {
 			if (!decode_bds_d1(raw->subfrm[sat-1],NULL,ion,utc)) return 0;
-			set_ion_param(raw,sat,NAV_BDS_D1,ion);
-			set_utc_param(raw,sat,NAV_BDS_D1,utc);
+			set_ion_param(raw,sat,NAV_CMP_D1,ion);
+			set_utc_param(raw,sat,NAV_CMP_D1,utc);
             return 9;
         }
         else return 0;
@@ -710,7 +711,7 @@ static int decode_bdsraw(raw_t *raw)
         else if (id==1&&pgn==102) {
             memcpy(raw->subfrm[sat-1]+10*38,buff,38);
             if (!decode_bds_d2(raw->subfrm[sat-1],NULL,utc)) return 0;
-			set_utc_param(raw,sat,NAV_BDS_D2,utc);
+			set_utc_param(raw,sat,NAV_CMP_D2,utc);
             return 9;
         }
         else return 0;
@@ -757,8 +758,8 @@ static int decode_bdsrawcnav1(raw_t *raw)
 	id=getbitu(buff,1272,6); /* subframe 3 page ID */
 	if (id==1) {  /* iono/UTC */
 		if (!decode_bds_cnav1(raw->subfrm[sat-1],NULL,ion,utc,0)) return 0;
-		set_ion_param(raw,sat,NAV_BDS_CNAV1,ion);
-		set_utc_param(raw,sat,NAV_BDS_CNAV1,utc);
+		set_ion_param(raw,sat,NAV_CMP_CNV1,ion);
+		set_utc_param(raw,sat,NAV_CMP_CNV1,utc);
         /*return 9;*/
 	}
 
@@ -983,7 +984,7 @@ static int decode_gpsrawcnav2(raw_t *raw, int sys)
 	for (i=0,p+=6;i<57;i++,p+=4) {
 		setbitu(buff,32*i,32,U4(p));
 	}
-	if (!decode_gps_cnav2(buff, &eph, NULL, NULL, NULL, 0)) return 0;
+	if (!decode_gps_cnav2(buff,&eph,NULL,NULL,NULL,sys,0)) return 0;
 
     if (!strstr(raw->opt,"-EPHALL")) {
 		if (timediff(eph.toe,raw->nav.eph[sat-1+MAXSAT*2].toe)==0.0) return 0;
@@ -1110,12 +1111,12 @@ static int decode_navicraw(raw_t *raw)
     }
     else if (id==2||id==3) { /* subframe 3 or 4 */
         if (decode_irn_nav(raw->subfrm[sat-1],NULL,ion,NULL)) {
-            set_ion_param(raw,sat,NAV_IRN_L1NV,ion);
-            ret=9;
-        }
-        if (decode_irn_nav(raw->subfrm[sat-1],NULL,NULL,utc)) {
-            adj_utcweek(raw->time,utc);
-            set_ion_param(raw,sat,NAV_IRN_L1NV,utc);
+			set_ion_param(raw,sat,NAV_IRN_LNAV,ion);
+			ret=9;
+		}
+		if (decode_irn_nav(raw->subfrm[sat-1],NULL,NULL,utc)) {
+			adj_utcweek(raw->time,utc);
+            set_ion_param(raw,sat,NAV_IRN_LNAV,utc);
             ret=9;
         }
         memset(raw->subfrm[sat-1]+id*37,0,37);
@@ -1156,8 +1157,8 @@ static int decode_navicrawl1(raw_t *raw)
 	id=getbitu(buff,1272,6); /* subframe 3 page ID */
 	if (id==1) {  /* iono/UTC */
 		if (!decode_bds_cnav1(raw->subfrm[sat-1],NULL,ion,utc,0)) return 0;
-		set_ion_param(raw,sat,NAV_BDS_CNAV1,ion);
-		set_utc_param(raw,sat,NAV_BDS_CNAV1,utc);
+		set_ion_param(raw,sat,NAV_IRN_L1NV,ion);
+		set_utc_param(raw,sat,NAV_IRN_L1NV,utc);
         /*return 9;*/
 	}
 

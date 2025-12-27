@@ -252,7 +252,9 @@ static int decode_sbstype9(const sbsmsg_t *msg, nav_t *nav)
     seph.acc[2]=getbits(msg->msg,196,10)*0.0000625;
     
     seph.af0=getbits(msg->msg,206,12)*P2_31;
-    seph.af1=getbits(msg->msg,218, 8)*P2_39/2.0;
+	seph.af1=getbits(msg->msg,218, 8)*P2_39/2.0;
+
+    seph.navtype=NAV_SBS_L1NV;
     
     i=msg->prn-MINPRNSBS;
     if (!nav->seph||fabs(timediff(nav->seph[i].t0,seph.t0))<1E-3) { /* not change */

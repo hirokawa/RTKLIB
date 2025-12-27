@@ -721,9 +721,10 @@ static int decode_trkd5(raw_t *raw)
 /* decode GPS/QZSS ephemeris -------------------------------------------------*/
 static int decode_eph(raw_t *raw, int sat)
 {
+    int sys=satsys(sat,NULL);
     eph_t eph={0};
     
-    if (!decode_frame(raw->subfrm[sat-1],&eph,NULL,NULL,NULL)) return 0;
+	if (!decode_gps_lnav(raw->subfrm[sat-1],&eph,NULL,NULL,NULL,sys)) return 0;
     
     if (!strstr(raw->opt,"-EPHALL")) {
         if (eph.iode==raw->nav.eph[sat-1].iode&&
@@ -744,7 +745,7 @@ static int decode_ionutc(raw_t *raw, int sat)
 	int sys=satsys(sat,NULL),navtype;
 	sto_t *sto;
 	
-	if (!decode_frame(raw->subfrm[sat-1],NULL,NULL,ion,utc)) return 0;
+	if (!decode_gps_lnav(raw->subfrm[sat-1],NULL,NULL,ion,utc,sys)) return 0;
 	
 	adj_utcweek(raw->time,utc);
 
@@ -888,8 +889,8 @@ static int decode_cnav(raw_t *raw, int sat, int off)
         }
         else if (id==5) {
 			if (!decode_bds_d1(raw->subfrm[sat-1],NULL,ion,utc)) return 0;
-			set_ion_param(raw,sat,NAV_BDS_D1,ion);
-			set_utc_param(raw,sat,NAV_BDS_D1,utc);
+			set_ion_param(raw,sat,NAV_CMP_D1,ion);
+			set_utc_param(raw,sat,NAV_CMP_D1,utc);
             return 9;
         }
         else return 0;
@@ -905,7 +906,7 @@ static int decode_cnav(raw_t *raw, int sat, int off)
         else if (id==5&&pgn==102) {
             memcpy(raw->subfrm[sat-1]+10*38,buff,38);
             if (!decode_bds_d2(raw->subfrm[sat-1],NULL,utc)) return 0;
-			set_utc_param(raw,sat,NAV_BDS_D2,utc);
+			set_utc_param(raw,sat,NAV_CMP_D2,utc);
             return 9;
         }
         else return 0;

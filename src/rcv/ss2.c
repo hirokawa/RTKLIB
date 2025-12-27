@@ -177,7 +177,7 @@ static int decode_ss2eph(raw_t *raw)
         buff[30*i+5]=(uint8_t)(((tow&1)<<7)+((i+1)<<2));
         for (j=0;j<24;j++) buff[30*i+6+j]=p[1+24*i+j];
     }
-    if (!decode_frame(buff,&eph,NULL,NULL,NULL)) {
+    if (!decode_gps_lnav(buff,&eph,NULL,NULL,NULL,SYS_GPS)) {
         trace(2,"ss2 id#22 subframe error: prn=%d\n",prn);
         return -1;
     }

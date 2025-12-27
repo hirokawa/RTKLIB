@@ -514,10 +514,10 @@ static int decode_rawephemb(raw_t *raw)
 {
     eph_t eph={0};
     uint8_t *p=raw->buff+OEM4HLEN,subframe[30*5]={0};
-    int prn,sat;
-    
-    if (raw->len<OEM4HLEN+102) {
-        trace(2,"oem4 rawephemb length error: len=%d\n",raw->len);
+	int prn,sat;
+
+	if (raw->len<OEM4HLEN+102) {
+		trace(2,"oem4 rawephemb length error: len=%d\n",raw->len);
         return -1;
     }
     prn=U4(p);
@@ -530,7 +530,7 @@ static int decode_rawephemb(raw_t *raw)
     }
     memcpy(subframe,p+12,30*3); /* subframe 1-3 */
     
-    if (!decode_frame(subframe,&eph,NULL,NULL,NULL)) {
+	if (!decode_gps_lnav(subframe,&eph,NULL,NULL,NULL,SYS_GPS)) {
         trace(2,"oem4 rawephemb subframe error: prn=%d\n",prn);
         return -1;
     }
@@ -675,7 +675,7 @@ static int decode_qzssrawephemb(raw_t *raw)
     }
     memcpy(subfrm,p+12,90);
     
-    if (!decode_frame(subfrm,&eph,NULL,NULL,NULL)) {
+    if (!decode_gps_lnav(subfrm,&eph,NULL,NULL,NULL,SYS_QZS)) {
         trace(3,"oem4 qzssrawephemb ephemeris error: prn=%d\n",prn);
         return 0;
     }
@@ -717,7 +717,7 @@ static int decode_qzssrawsubframeb(raw_t *raw)
     memcpy(raw->subfrm[sat-1]+30*(id-1),p+8,30);
     
     if (id==3) {
-        if (!decode_frame(raw->subfrm[sat-1],&eph,NULL,NULL,NULL)) return 0;
+        if (!decode_gps_lnav(raw->subfrm[sat-1],&eph,NULL,NULL,NULL,SYS_QZS)) return 0;
         if (!strstr(raw->opt,"-EPHALL")) {
             if (eph.iodc==raw->nav.eph[sat-1].iodc&&
                 eph.iode==raw->nav.eph[sat-1].iode) return 0; /* unchanged */
@@ -729,7 +729,7 @@ static int decode_qzssrawsubframeb(raw_t *raw)
         return 2;
     }
     else if (id==4||id==5) {
-        if (!decode_frame(raw->subfrm[sat-1],NULL,NULL,ion,utc)) return 0;
+        if (!decode_gps_lnav(raw->subfrm[sat-1],NULL,NULL,ion,utc,SYS_QZS)) return 0;
 		adj_utcweek(raw->time,utc);
         set_ion_param(raw,sat,NAV_QZS_LNAV,ion);
         set_utc_param(raw,sat,NAV_QZS_LNAV,utc);
@@ -1193,7 +1193,7 @@ static int decode_repb(raw_t *raw)
         trace(2,"oem3 repb satellite number error: prn=%d\n",prn);
         return -1;
     }
-    if (!decode_frame(p+4,&eph,NULL,NULL,NULL)) {
+    if (!decode_gps_lnav(p+4,&eph,NULL,NULL,NULL,SYS_GPS)) {
         trace(2,"oem3 repb subframe error: prn=%d\n",prn);
         return -1;
     }

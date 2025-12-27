@@ -376,11 +376,12 @@ static int save_subfrm(int sat, raw_t *raw)
 /* decode ephemeris ----------------------------------------------------------*/
 static int decode_ephem(int sat, raw_t *raw)
 {
+    int sys=satsys(sat,NULL);
     eph_t eph={0};
     
     trace(4,"decode_ephem: sat=%2d\n",sat);
     
-    if (!decode_frame(raw->subfrm[sat-1],&eph,NULL,NULL,NULL)) return 0;
+    if (!decode_gps_lnav(raw->subfrm[sat-1],&eph,NULL,NULL,NULL,sys)) return 0;
     
     if (!strstr(raw->opt,"-EPHALL")) {
         if (eph.iode==raw->nav.eph[sat-1].iode&&
@@ -399,14 +400,9 @@ static int decode_alm1(int sat, raw_t *raw)
 	double ion[8],utc[8];
     
     trace(4,"decode_alm1 : sat=%2d\n",sat);
-    
-	if (sys==SYS_GPS) {
-		navtype=NAV_GPS_LNAV;
-	}
-	else if (sys==SYS_QZS) {
-		navtype=NAV_QZS_LNAV;
-	}
-	decode_frame(raw->subfrm[sat-1],NULL,raw->nav.alm,ion,utc);
+
+	navtype=(sys==SYS_GPS)?NAV_GPS_LNAV:NAV_QZS_LNAV;
+	decode_gps_lnav(raw->subfrm[sat-1],NULL,raw->nav.alm,ion,utc,sys);
 	adj_utcweek(raw->time,utc);
 	set_ion_param(raw,sat,navtype,ion);
 	set_utc_param(raw,sat,navtype,utc);
@@ -415,19 +411,19 @@ static int decode_alm1(int sat, raw_t *raw)
 /* decode almanac ------------------------------------------------------------*/
 static int decode_alm2(int sat, raw_t *raw)
 {
-	int sys=satsys(sat,NULL),navtype=NAV_QZS_LNAV;
+	int sys=satsys(sat,NULL);
 	double ion[8],utc[8];
     
     trace(4,"decode_alm2 : sat=%2d\n",sat);
     
     if (sys==SYS_GPS) {
-        decode_frame(raw->subfrm[sat-1],NULL,raw->nav.alm,NULL,NULL);
+		decode_gps_lnav(raw->subfrm[sat-1],NULL,raw->nav.alm,NULL,NULL,sys);
     }
     else if (sys==SYS_QZS) {
-		decode_frame(raw->subfrm[sat-1],NULL,raw->nav.alm,ion,utc);
+		decode_gps_lnav(raw->subfrm[sat-1],NULL,raw->nav.alm,ion,utc,sys);
 		adj_utcweek(raw->time,utc);
-		set_ion_param(raw,sat,navtype,ion);
-		set_utc_param(raw,sat,navtype,utc);
+		set_ion_param(raw,sat,NAV_QZS_LNAV,ion);
+		set_utc_param(raw,sat,NAV_QZS_LNAV,utc);
 	}
 
     return  0;

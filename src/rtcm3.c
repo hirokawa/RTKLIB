@@ -759,7 +759,8 @@ static int decode_type1019(rtcm_t *rtcm)
         eph.tgd[0]=getbits(rtcm->buff,i, 8)*P2_31;        i+= 8;
         eph.svh   =getbitu(rtcm->buff,i, 6);              i+= 6;
         eph.flag  =getbitu(rtcm->buff,i, 1);              i+= 1;
-        eph.fit   =getbitu(rtcm->buff,i, 1)?0.0:4.0; /* 0:4hr,1:>4hr */
+		eph.fit   =getbitu(rtcm->buff,i, 1)?0.0:4.0; /* 0:4hr,1:>4hr */
+        eph.navtype=NAV_GPS_LNAV;
     }
     else {
         trace(2,"rtcm3 1019 length error: len=%d\n",rtcm->len);
@@ -825,7 +826,8 @@ static int decode_type1020(rtcm_t *rtcm)
         geph.gamn  =getbitg(rtcm->buff,i,11)*P2_40;     i+=11+3;
         geph.taun  =getbitg(rtcm->buff,i,22)*P2_30;     i+=22;
         geph.dtaun =getbitg(rtcm->buff,i, 5)*P2_30;     i+=5;
-        geph.age   =getbitu(rtcm->buff,i, 5);
+		geph.age   =getbitu(rtcm->buff,i, 5);
+        geph.navtype=NAV_GLO_FDMA;
     }
     else {
         trace(2,"rtcm3 1020 length error: len=%d\n",rtcm->len);
@@ -1079,7 +1081,8 @@ static int decode_type1041(rtcm_t *rtcm)
         eph.OMG0  =getbits(rtcm->buff,i,32)*P2_31*SC2RAD; i+=32;
         eph.omg   =getbits(rtcm->buff,i,32)*P2_31*SC2RAD; i+=32;
         eph.OMGd  =getbits(rtcm->buff,i,22)*P2_41*SC2RAD; i+=22;
-        eph.i0    =getbits(rtcm->buff,i,32)*P2_31*SC2RAD;
+		eph.i0    =getbits(rtcm->buff,i,32)*P2_31*SC2RAD;
+        eph.navtype=NAV_IRN_LNAV;
     }
     else {
         trace(2,"rtcm3 1041 length error: len=%d\n",rtcm->len);
@@ -1152,7 +1155,8 @@ static int decode_type1044(rtcm_t *rtcm)
         eph.svh   =getbitu(rtcm->buff,i, 6);              i+= 6;
         eph.tgd[0]=getbits(rtcm->buff,i, 8)*P2_31;        i+= 8;
         eph.iodc  =getbitu(rtcm->buff,i,10);              i+=10;
-        eph.fit   =getbitu(rtcm->buff,i, 1)?0.0:2.0; /* 0:2hr,1:>2hr */
+		eph.fit   =getbitu(rtcm->buff,i, 1)?0.0:2.0; /* 0:2hr,1:>2hr */
+        eph.navtype=NAV_QZS_LNAV;
     }
     else {
         trace(2,"rtcm3 1044 length error: len=%d\n",rtcm->len);
@@ -1227,7 +1231,8 @@ static int decode_type1045(rtcm_t *rtcm)
         eph.tgd[0]=getbits(rtcm->buff,i,10)*P2_32;        i+=10; /* E5a/E1 */
         e5a_hs    =getbitu(rtcm->buff,i, 2);              i+= 2; /* OSHS */
         e5a_dvs   =getbitu(rtcm->buff,i, 1);              i+= 1; /* OSDVS */
-        rsv       =getbitu(rtcm->buff,i, 7);
+		rsv       =getbitu(rtcm->buff,i, 7);
+        eph.navtype=NAV_GAL_FNAV;
     }
     else {
         trace(2,"rtcm3 1045 length error: len=%d\n",rtcm->len);
@@ -1308,7 +1313,8 @@ static int decode_type1046(rtcm_t *rtcm)
         e5b_hs    =getbitu(rtcm->buff,i, 2);              i+= 2; /* E5b OSHS */
         e5b_dvs   =getbitu(rtcm->buff,i, 1);              i+= 1; /* E5b OSDVS */
         e1_hs     =getbitu(rtcm->buff,i, 2);              i+= 2; /* E1 OSHS */
-        e1_dvs    =getbitu(rtcm->buff,i, 1);              i+= 1; /* E1 OSDVS */
+		e1_dvs    =getbitu(rtcm->buff,i, 1);              i+= 1; /* E1 OSDVS */
+        eph.navtype=NAV_GAL_INAV;
     }
     else {
         trace(2,"rtcm3 1046 length error: len=%d\n",rtcm->len);
@@ -1385,7 +1391,8 @@ static int decode_type1042(rtcm_t *rtcm)
         eph.OMGd  =getbits(rtcm->buff,i,24)*P2_43*SC2RAD; i+=24;
         eph.tgd[0]=getbits(rtcm->buff,i,10)*1E-10;        i+=10;
         eph.tgd[1]=getbits(rtcm->buff,i,10)*1E-10;        i+=10;
-        eph.svh   =getbitu(rtcm->buff,i, 1);              i+= 1;
+		eph.svh   =getbitu(rtcm->buff,i, 1);              i+= 1;
+        eph.navtype=(prn>5&&prn<58)?NAV_CMP_D1:NAV_CMP_D2;
     }
     else {
         trace(2,"rtcm3 1042 length error: len=%d\n",rtcm->len);

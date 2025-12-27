@@ -116,7 +116,8 @@ extern "C" {
 #define SYS_CMP     0x20                /* navigation system: BeiDou */
 #define SYS_IRN     0x40                /* navigation system: IRNS */
 #define SYS_LEO     0x80                /* navigation system: LEO */
-#define SYS_ALL     0xFF                /* navigation system: all */
+#define SYS_GLC     0x100               /* navigation system: GLONASS CDMA */
+#define SYS_ALL     0x1FF               /* navigation system: all */
 
 #define TSYS_GPS    0                   /* time system: GPS time */
 #define TSYS_GLO    1                   /* time system: GLONASS time */
@@ -522,28 +523,6 @@ extern "C" {
 #define LLI_HALFA   0x40                /* LLI: half-cycle added */
 #define LLI_HALFS   0x80                /* LLI: half-cycle subtracted */
 
-#define NAV_GPS_LNAV    0               /* Navigation message format GPS LNAV */
-#define NAV_GPS_CNAV    1               /* Navigation message format GPS CNAV */
-#define NAV_GPS_CNAV2   2               /* Navigation message format GPS CNAV/2 */
-#define NAV_GAL_INAV    0               /* Navigation message format GAL INAV */
-#define NAV_GAL_FNAV    1               /* Navigation message format GAL FNAV */
-#define NAV_GAL_CNAV    2               /* Navigation message format GAL CNAV */
-#define NAV_GLO_FDMA    0               /* Navigation message format GLO FDMA */
-#define NAV_GLO_L1OC    1               /* Navigation message format GLO L1OC */
-#define NAV_GLO_L3OC    3               /* Navigation message format GLO L3OC */
-#define NAV_QZS_LNAV    0               /* Navigation message format QZS LNAV */
-#define NAV_QZS_CNAV    1               /* Navigation message format QZS CNAV */
-#define NAV_QZS_CNAV2   2               /* Navigation message format QZS CNAV/2 */
-#define NAV_BDS_D1      0               /* Navigation message format BDS D1 */
-#define NAV_BDS_D2      1               /* Navigation message format BDS D2 */
-#define NAV_BDS_CNAV1   2               /* Navigation message format BDS CNAV1 */
-#define NAV_BDS_CNAV2   3               /* Navigation message format BDS CNAV2 */
-#define NAV_BDS_CNAV3   4               /* Navigation message format BDS CNAV3 */
-#define NAV_IRN_LNAV    0               /* Navigation message format IRN LNAV */
-#define NAV_IRN_L1NV    1               /* Navigation message format IRN L1NAV */
-#define NAV_SBS_L1NV    0               /* Navigation message format SBAS L1 */
-#define NAV_SBS_L5NV    1               /* Navigation message format SBAS L5 */
-
 #define STO_NAV_LNAV    0               /* Navitation mesdsage format for STO LNAV */
 #define STO_NAV_FDMA    1               /* Navitation mesdsage format for STO FDMA */
 #define STO_NAV_IFNV    2               /* Navitation mesdsage format for STO INAV/FNAV */
@@ -580,10 +559,11 @@ extern "C" {
 #define SF_OFST_GPS_CNAV	150		/* Offset of raw->subfrm for GPS/QZS CNAV */
 #define SF_OFST_GPS_CNAV2	290		/* Offset of raw->subfrm for GPS/QZS CNAV2 */
 #define SF_OFST_BDS_D1D2	0		/* Offset of raw->subfrm for BDS D1/D2 */
+#define SF_OFST_BDS_CNAV1	190		/* Offset of raw->subfrm for BDS CNAV-1 */
 #define SF_OFST_BDS_CNAV2	418		/* Offset of raw->subfrm for BDS CNAV-2 */
-#define SF_OFST_BDS_CNAV3	562		/* Offset of raw->subfrm for BDS CNAV-2 */
+#define SF_OFST_BDS_CNAV3	562		/* Offset of raw->subfrm for BDS CNAV-3 */
 #define SF_OFST_GAL_INAV	0		/* Offset of raw->subfrm for GAL INAV */
-#define SF_OFST_GAL_FNAV	128		/* Offset of raw->subfrm for GAL FNAV */
+#define SF_OFST_GAL_FNAV	176		/* Offset of raw->subfrm for GAL FNAV */
 #define SF_OFST_GAL_CNAV	283		/* Offset of raw->subfrm for GAL CNAV */
 
 #define P2_5        0.03125             /* 2^-5 */
@@ -649,6 +629,31 @@ extern "C" {
 #endif
 
 /* type definitions ----------------------------------------------------------*/
+
+typedef enum {                  /* Navitation message format type           */
+	NAV_NONE=0,
+	NAV_GPS_LNAV,               /* Navigation message format GPS LNAV   	*/
+	NAV_GPS_CNAV,               /* Navigation message format GPS CNAV   	*/
+	NAV_GPS_CNV2,               /* Navigation message format GPS CNAV2		*/
+	NAV_GAL_INAV,               /* Navigation message format GAL INAV   	*/
+	NAV_GAL_FNAV,               /* Navigation message format GAL FNAV   	*/
+	NAV_GAL_CNAV,               /* Navigation message format GAL CNAV   	*/
+	NAV_GLO_FDMA,               /* Navigation message format GLO FDMA   	*/
+	NAV_GLO_L1OC,               /* Navigation message format GLO L1OC   	*/
+	NAV_GLO_L3OC,               /* Navigation message format GLO L3OC   	*/
+	NAV_QZS_LNAV,               /* Navigation message format QZS LNAV   	*/
+	NAV_QZS_CNAV,               /* Navigation message format QZS CNAV   	*/
+	NAV_QZS_CNV2,               /* Navigation message format QZS CNAV2  	*/
+	NAV_CMP_D1  ,               /* Navigation message format BDS D1     	*/
+	NAV_CMP_D2  ,               /* Navigation message format BDS D2     	*/
+	NAV_CMP_CNV1,               /* Navigation message format BDS CNAV1  	*/
+	NAV_CMP_CNV2,               /* Navigation message format BDS CNAV2  	*/
+	NAV_CMP_CNV3,               /* Navigation message format BDS CNAV3  	*/
+	NAV_IRN_LNAV,               /* Navigation message format NavIC L5 LNAV	*/
+	NAV_IRN_L1NV,               /* Navigation message format NavIC L1NAV	*/
+	NAV_SBS_L1NV,               /* Navigation message format SBAS L1    	*/
+	NAV_SBS_L5NV,               /* Navigation message format SBAS L5		*/
+} navtype_t;
 
 typedef struct {        /* time struct */
 	time_t time;        /* time (s) expressed by standard time_t */
@@ -737,7 +742,8 @@ typedef struct {        /* GPS/QZS/GAL broadcast ephemeris type */
                         /* BDS: data source (0:unknown,1:B1I,2:B1Q,3:B2I,4:B2Q,5:B3I,6:B3Q) */
     int flag;           /* GPS/QZS: L2 P data flag */
 						/* BDS: nav type (0:unknown,1:IGSO/MEO,2:GEO) */
-    int integ;          /* integrity flag as defined in RINEX 4.02 */
+	int integ;          /* integrity flag as defined in RINEX 4.02 */
+    navtype_t navtype;  /* navigation message format type */
     gtime_t toe,toc,ttr,top; /* Toe,Toc,T_trans,top */
                         /* SV orbit parameters */
 	double A,e,i0,OMG0,omg,M0,deln,OMGd,idot;
@@ -763,6 +769,7 @@ typedef struct {        /* GLONASS broadcast ephemeris type */
 	int code;
 	int health;         /* health flags: b2:l(3),b1:Ac,b0:C */
 	int flag;           /* flags: b708:M,b6:P4,b5:P3,b4:P2,b2-3:P1,b0-1:P */
+	navtype_t navtype;  /* navigation message format type */
     gtime_t toe;        /* epoch of epherides (gpst) */
     gtime_t tof;        /* message frame time (gpst) */
     double pos[3];      /* satellite position (ecef) (m) */
@@ -794,7 +801,8 @@ typedef struct {        /* precise clock type */
 typedef struct {        /* SBAS ephemeris type */
     int sat;            /* satellite number */
     gtime_t t0;         /* reference epoch time (GPST) */
-    gtime_t tof;        /* time of message frame (GPST) */
+	gtime_t tof;        /* time of message frame (GPST) */
+    navtype_t navtype;  /* navigation message format type */
     int sva;            /* SV accuracy (URA index) */
 	int svh;            /* SV health (0:ok) */
     double pos[3];      /* satellite position (m) (ecef) */
@@ -926,7 +934,7 @@ typedef struct {        /* DGPS/GNSS correction type */
 
 typedef struct {        /* ionospheric delay model parameters */
 	int sat;            /* satellite number */
-    int navtype;        /* navitatyion type */
+    navtype_t navtype;  /* navitatyion message format type */
 	int zone;           /* global:0, local: 1 */
     int iod;            /* issue of data */
 	gtime_t ttm;        /* transmission time */
@@ -1743,12 +1751,12 @@ EXPORT uint32_t rtk_crc32 (const uint8_t *buff, int len);
 EXPORT uint32_t rtk_crc24q(const uint8_t *buff, int len);
 EXPORT uint16_t rtk_crc16 (const uint8_t *buff, int len);
 EXPORT int decode_word (uint32_t word, uint8_t *data);
-EXPORT int decode_frame(const uint8_t *buff, eph_t *eph, alm_t *alm,
-						double *ion, double *utc);
+EXPORT int decode_gps_lnav(const uint8_t *buff, eph_t *eph, alm_t *alm,
+						double *ion, double *utc, int sys);
 EXPORT int decode_gps_cnav(const uint8_t *buff, eph_t *eph, alm_t *alm,
 						double *ion, double *utc, int sys);
 EXPORT int decode_gps_cnav2(const uint8_t *buff, eph_t *eph, alm_t *alm,
-						double *ion, double *utc, int mode);
+						double *ion, double *utc, int sys, int mode);
 EXPORT int test_glostr(const uint8_t *buff);
 EXPORT int decode_glostr(const uint8_t *buff, geph_t *geph, double *utc);
 EXPORT int decode_bds_d1(const uint8_t *buff, eph_t *eph, double *ion,
@@ -1767,8 +1775,8 @@ EXPORT int decode_irn_nav(const uint8_t *buff, eph_t *eph, double *ion,
 EXPORT int decode_irn_l1(const uint8_t *buff, eph_t *eph, double *ion,
 						  double *utc, int mode);
 EXPORT void adj_utcweek(gtime_t time, double *utc);
-EXPORT void set_ion_param(raw_t *raw, int sat, int navtype, double *ion);
-EXPORT void set_utc_param(raw_t *raw, int sat, int navtype, double *utc);
+EXPORT void set_ion_param(raw_t *raw, int sat, navtype_t navtype, double *ion);
+EXPORT void set_utc_param(raw_t *raw, int sat, navtype_t navtype, double *utc);
 EXPORT void sto2utc(sto_t *sto, double *utc);
 
 EXPORT int init_raw   (raw_t *raw, int format);

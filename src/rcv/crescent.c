@@ -297,10 +297,10 @@ static int decode_creseph(raw_t *raw)
         word=U4(p+8+i*40+j*4)>>6;
         for (k=0;k<3;k++) buff[i*30+j*3+k]=(uint8_t)((word>>(8*(2-k)))&0xFF);
     }
-    if (!decode_frame(buff,&eph,NULL,NULL,NULL)) {
+	if (!decode_gps_lnav(buff,&eph,NULL,NULL,NULL,satsys(sat,NULL))) {
         trace(2,"crescent bin 95 navigation frame error: prn=%d\n",prn);
         return -1;
-    }
+	}
     if (!strstr(raw->opt,"-EPHALL")) {
         if (eph.iode==raw->nav.eph[sat-1].iode) return 0; /* unchanged */
     }

@@ -753,7 +753,7 @@ static int scan_file(char **files, int nf, rnxopt_t *opt, strfile_t *str,
         if (!open_strfile(str,files[m])) {
             continue;
         }
-        while ((type=input_strfile(str))>=-1) {
+		while ((type=input_strfile(str))>=-1) {
             if (opt->ts.time&&timediff(str->time,opt->ts)<-opt->ttol) continue;
             if (opt->te.time&&timediff(str->time,opt->te)>-opt->ttol) break;
             mask[m]=1; /* update file mask */
@@ -1057,14 +1057,14 @@ static void convobs(FILE **ofp, rnxopt_t *opt, strfile_t *str, int *n,
 /* convert navigattion data --------------------------------------------------*/
 static void convnav(FILE **ofp, rnxopt_t *opt, strfile_t *str, int *n)
 {
-    gtime_t ts;
+	gtime_t ts;
     double dtoe;
     int sat,set,sys,prn,sep_nav=(opt->rnxver<=299||opt->sep_nav);
     
-    trace(3,"convnav :\n");
+	trace(3,"convnav :\n");
     
     sat=str->ephsat;
-    set=str->ephset;
+	set=str->ephset;
     sys=satsys(sat,&prn);
     if (!(sys&opt->navsys)||opt->exsats[sat-1]) return;
     
@@ -1083,7 +1083,7 @@ static void convnav(FILE **ofp, rnxopt_t *opt, strfile_t *str, int *n)
     
     if (sys==SYS_GPS) {
         if (ofp[1]) {
-            outrnxnavb(ofp[1],opt,str->nav->eph+sat-1+MAXSAT*set);
+			outrnxnavb(ofp[1],opt,str->nav->eph+sat-1+MAXSAT*set);
             n[1]++;
         }
     }
@@ -1108,8 +1108,8 @@ static void convnav(FILE **ofp, rnxopt_t *opt, strfile_t *str, int *n)
         }
     }
     else if (sys==SYS_QZS) {
-        if (ofp[1]&&!sep_nav) {
-            outrnxnavb(ofp[1],opt,str->nav->eph+sat-1+MAXSAT*set);
+		if (ofp[1]&&!sep_nav) {
+			outrnxnavb(ofp[1],opt,str->nav->eph+sat-1+MAXSAT*set);
             n[1]++;
         }
         else if (ofp[4]&&sep_nav) {
@@ -1130,7 +1130,7 @@ static void convnav(FILE **ofp, rnxopt_t *opt, strfile_t *str, int *n)
     else if (sys==SYS_CMP) {
         if (ofp[1]&&!sep_nav) {
             outrnxnavb(ofp[1],opt,str->nav->eph+sat-1+MAXSAT*set);
-            n[1]++;
+			n[1]++;
         }
         else if (ofp[6]&&sep_nav) {
             outrnxnavb(ofp[6],opt,str->nav->eph+sat-1+MAXSAT*set);
@@ -1330,7 +1330,7 @@ static int convrnx_s(int sess, int format, rnxopt_t *opt, const char *file,
             /* convert message */
             switch (type) {
                 case  1: convobs(ofp,opt,str,n,tend,&staid); break;
-                case  2: convnav(ofp,opt,str,n); break;
+				case  2: convnav(ofp,opt,str,n); break;
                 case  3: convsbs(ofp,opt,str,n,tend+1); break;
                 case -1: n[NOUTFILE]++; break; /* error */
             }
