@@ -747,7 +747,7 @@ static int decode_ionutc(raw_t *raw, int sat)
 	
 	if (!decode_gps_lnav(raw->subfrm[sat-1],NULL,NULL,ion,utc,sys)) return 0;
 	
-	adj_utcweek(raw->time,utc);
+	adj_utcweek(raw->time,utc,8);
 
 	navtype=(sys==SYS_QZS)?NAV_QZS_LNAV:NAV_GPS_LNAV;
 	set_ion_param(raw,sat,navtype,ion);
@@ -826,25 +826,26 @@ static int decode_enav(raw_t *raw, int sat, int off)
     }
     type=getbitu(buff,2,6); /* word type */
     
-    if (type>6) return 0;
+    if (type==0||type>6) return 0;
     
     /* save 128 (112:even+16:odd) bits word */
     for (i=0,j=2;i<14;i++,j+=8) {
-        raw->subfrm[sat-1][type*16+i]=getbitu(buff,j,8);
+		raw->subfrm[sat-1][(type-1)*16+i]=getbitu(buff,j,8);
     }
     for (i=14,j=130;i<16;i++,j+=8) {
-        raw->subfrm[sat-1][type*16+i]=getbitu(buff,j,8);
+        raw->subfrm[sat-1][(type-1)*16+i]=getbitu(buff,j,8);
     }
     if (type!=5) return 0;
-    if (!decode_gal_inav(raw->subfrm[sat-1],&eph,ion,utc)) return 0;
-        
-    if (eph.sat!=sat) {
-        trace(2,"ubx rxmsfrbx enav satellite error: sat=%d %d\n",sat,eph.sat);
-        return -1;
-    }
-    eph.code|=(1<<0); /* data source: E1 */
-    
-	adj_utcweek(raw->time,utc);
+	if (!decode_gal_inav(raw->subfrm[sat-1],&eph,NULL,NULL)) return 0;
+
+	if (eph.sat!=sat) {
+		trace(2,"ubx rxmsfrbx enav satellite error: sat=%d %d\n",sat,eph.sat);
+		return -1;
+	}
+	eph.code|=(1<<0); /* data source: E1 */
+
+	decode_gal_inav(raw->subfrm[sat-1],NULL,ion,utc);
+	adj_utcweek(raw->time,utc,8);
 	set_ion_param(raw,sat,NAV_GAL_INAV,ion);
 	set_utc_param(raw,sat,NAV_GAL_INAV,utc);
     //matcpy(raw->nav.utc_gal,utc,8,1);

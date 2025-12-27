@@ -2855,7 +2855,6 @@ static int select_sysid(int sys, navtype_t navtype)
 /* output iono correction for a system (RINEX v4)-------------------------------*/
 static void out_iono_sys4(FILE *fp, const ion_t *ion)
 {
-	const char *navtype[]={"LNAV","D1D2","CNVX","IFNV"};
 	const char *regtype[]={"WIDE","JAPN"};
 	int i,j,sys,id,n;
 	double ep[6];
@@ -2873,7 +2872,7 @@ static void out_iono_sys4(FILE *fp, const ion_t *ion)
     reg=(sys==SYS_QZS)?(char *)regtype[ion->zone]:"";
 
     satno2id(ion->sat,buff);
-	fprintf(fp, "> ION %-3s %4s %4s\n",buff,navtype[id],reg);
+	fprintf(fp, "> ION %-3s %4s %4s\n",buff,ion_navtype[id],reg);
 	time2epoch(ion->ttm,ep);
 	fprintf(fp, "    %4.0f %2.0f %2.0f %2.0f %2.0f %2.0f",
 		ep[0],ep[1],ep[2],ep[3],ep[4],ep[5]);
@@ -2895,6 +2894,43 @@ static void out_iono_sys4(FILE *fp, const ion_t *ion)
 	}
 	fprintf(fp,"\n");
 }
+/* output EOP for a system (RINEX v4)-------------------------------*/
+static void out_eop_sys4(FILE *fp, const eop_t *eop)
+{
+	double ep[6],ttm;
+    char buff[4];
+
+	if (norm(eop->xp,3)<=0.0&&norm(eop->yp,3)<=0.0) return;
+
+	if (eop->type<0) return;
+
+    ttm=time2gpst(eop->ttm,NULL);
+
+	satno2id(eop->sat,buff);
+	fprintf(fp, "> EOP %-3s %4s\n",buff,eop_navtype[eop->type]);
+	time2epoch(eop->ttm,ep);
+	fprintf(fp, "    %4.0f %2.0f %2.0f %2.0f %2.0f %2.0f",
+		ep[0],ep[1],ep[2],ep[3],ep[4],ep[5]);
+
+	outnavf(fp,eop->xp[0]); /* xp */
+	outnavf(fp,eop->xp[1]); /* xpd */
+	outnavf(fp,eop->xp[2]); /* xpdd */
+	fprintf(fp,"\n");
+
+	fprintf(fp,"    ");
+	outnavf(fp,0.0); /* spare */
+	outnavf(fp,eop->yp[0]); /* yp */
+	outnavf(fp,eop->yp[1]); /* ypd */
+	outnavf(fp,eop->yp[2]); /* ypdd */
+	fprintf(fp,"\n");
+
+	fprintf(fp,"    ");
+	outnavf(fp,ttm); /* spare */
+	outnavf(fp,eop->dut1[0]); /* dut1 */
+	outnavf(fp,eop->dut1[1]); /* dut1d */
+	outnavf(fp,eop->dut1[2]); /* dut1dd */
+	fprintf(fp,"\n");
+}
 /* output iono corrections for RINEX 4---------------------------------------*/
 static void out_iono4(FILE *fp, int sys, const rnxopt_t *opt, const nav_t *nav)
 {
@@ -2914,6 +2950,27 @@ static void out_iono4(FILE *fp, int sys, const rnxopt_t *opt, const nav_t *nav)
 	}
     if (sys&opt->navsys&SYS_IRN) {
 		out_iono_sys4(fp,&nav->ion[TSYS_IRN]);
+    }
+}
+/* output EOP for RINEX 4---------------------------------------*/
+static void out_eop4(FILE *fp, int sys, const rnxopt_t *opt, const nav_t *nav)
+{
+    /*if (!opt->outeop) return;*/
+
+	if (sys&opt->navsys&SYS_GPS) {
+		out_eop_sys4(fp,&nav->eop[TSYS_GPS]);
+	}
+	if (sys&opt->navsys&SYS_GLO) {
+		out_eop_sys4(fp,&nav->eop[TSYS_GLO]);
+	}
+	if (sys&opt->navsys&SYS_QZS) {
+		out_eop_sys4(fp,&nav->eop[TSYS_QZS]);
+	}
+	if (sys&opt->navsys&SYS_CMP) {
+		out_eop_sys4(fp,&nav->eop[TSYS_CMP]);
+	}
+	if (sys&opt->navsys&SYS_IRN) {
+		out_eop_sys4(fp,&nav->eop[TSYS_IRN]);
     }
 }
 /* output time system correction for a system --------------------------------*/
@@ -2985,7 +3042,8 @@ static void out_time_sys4(FILE *fp, const char *sys, const sto_t *utc)
 
 	if (norm(utc->a,3)<=0.0) return;
 
-    detect_utc_src(sys,&src,&dst);
+	detect_utc_src(sys,&src,&dst);
+	if (src==-1||dst==-1) return;
 
     satno2id(utc->sat,buff);
 	fprintf(fp, "> STO %-3s %4s\n",buff,nav_id[src]);
@@ -3120,6 +3178,7 @@ extern int outrnxnavh(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
 		out_leaps(fp,SYS_GPS,opt,nav);
 		fprintf(fp,"%60s%-20s\n","","END OF HEADER");
 		out_iono4(fp,opt->sep_nav?SYS_GPS:SYS_ALL,opt,nav);
+		out_eop4(fp,opt->sep_nav?SYS_GPS:SYS_ALL,opt,nav);
 		ret=out_time4(fp,opt->sep_nav?SYS_GPS:SYS_ALL,opt,nav);
 		return ret!=EOF;
 	}
@@ -3214,7 +3273,7 @@ extern int outrnxnavb(FILE *fp, const rnxopt_t *opt, const eph_t *eph)
     }
     else {
         v1=(double)eph->iode;
-        v2=(double)(eph->code&1);
+        v2=(double)eph->code;
     }
  
     outnavf(fp,eph->f0     );
@@ -3254,8 +3313,9 @@ extern int outrnxnavb(FILE *fp, const rnxopt_t *opt, const eph_t *eph)
     outnavf(fp,eph->idot   );
     outnavf(fp,v2          );
 
-	if (((sys==SYS_GPS||sys==SYS_QZS)&&(navtype==NAV_GPS_CNAV||navtype==NAV_QZS_CNAV||
-		navtype==NAV_GPS_CNV2||navtype==NAV_QZS_CNV2))) {
+	if (((sys==SYS_GPS||sys==SYS_QZS)&&
+		(navtype==NAV_GPS_CNAV||navtype==NAV_QZS_CNAV||
+		 navtype==NAV_GPS_CNV2||navtype==NAV_QZS_CNV2))) {
 		outnavf(fp,eph->urai[0]); /* URAI NED0 */
 		outnavf(fp,eph->urai[1]); /* URAI NED1 */
 	} else if (((sys==SYS_CMP)&&(navtype==NAV_CMP_CNV1||navtype==NAV_CMP_CNV2||
@@ -3323,8 +3383,9 @@ extern int outrnxnavb(FILE *fp, const rnxopt_t *opt, const eph_t *eph)
     }
 
 	/* Line 7- */
-	if (((sys==SYS_GPS||sys==SYS_QZS)&&(navtype==NAV_GPS_CNAV||navtype==NAV_QZS_CNAV||
-		navtype==NAV_GPS_CNV2||navtype==NAV_QZS_CNV2))) {
+	if (((sys==SYS_GPS||sys==SYS_QZS)&&
+		(navtype==NAV_GPS_CNAV||navtype==NAV_QZS_CNAV||
+		 navtype==NAV_GPS_CNV2||navtype==NAV_QZS_CNV2))) {
         outnavf(fp,eph->tgd[1]); /* GPS/QZS:TGD2 */
         outnavf(fp,eph->tgd[2]); /* GPS/QZS:TGD3 */
         outnavf(fp,eph->tgd[3]); /* GPS/QZS: ISC_L5I5 */

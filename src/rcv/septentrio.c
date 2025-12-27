@@ -357,7 +357,7 @@ static int decode_ionutc(raw_t *raw, int sat)
     
     if (!decode_gps_lnav(raw->subfrm[sat-1],NULL,NULL,ion,utc,sys)) return 0;
     
-    adj_utcweek(raw->time,utc);
+    adj_utcweek(raw->time,utc,8);
 	if (sys==SYS_QZS) {
 		set_ion_param(raw,sat,NAV_QZS_LNAV,ion);
 		set_utc_param(raw,sat,NAV_QZS_LNAV,utc);
@@ -527,7 +527,7 @@ static int decode_galrawfnav(raw_t *raw)
     }
     eph.code|=(1<<1); /* data source: E5a */
     
-	adj_utcweek(raw->time,utc);
+	adj_utcweek(raw->time,utc,8);
 	set_ion_param(raw,sat,NAV_GAL_FNAV,ion);
 	set_utc_param(raw,sat,NAV_GAL_FNAV,utc);
     
@@ -590,25 +590,27 @@ static int decode_galrawinav(raw_t *raw)
     
     type=getbitu(buff,2,6); /* word type */
     
-    if (type>6) return 0;
+    if (type==0||type>6) return 0;
     
     /* save 128 (112:even+16:odd) bits word (16 bytes * 7 word) */
     for (i=0,j=2;i<14;i++,j+=8) {
-        raw->subfrm[sat-1][type*16+i]=getbitu(buff,j,8);
+		raw->subfrm[sat-1][(type-1)*16+i]=getbitu(buff,j,8);
     }
     for (i=14,j=116;i<16;i++,j+=8) {
-        raw->subfrm[sat-1][type*16+i]=getbitu(buff,j,8);
+        raw->subfrm[sat-1][(type-1)*16+i]=getbitu(buff,j,8);
     }
     if (type!=5) return 0;
-    if (!decode_gal_inav(raw->subfrm[sat-1],&eph,ion,utc)) return 0;
+    if (!decode_gal_inav(raw->subfrm[sat-1],&eph,NULL,NULL)) return 0;
     
     if (eph.sat!=sat) {
         trace(2,"sbf galrawinav satellite error: sat=%d %d\n",sat,eph.sat);
         return -1;
     }
     eph.code|=(src==17)?(1<<0):(1<<2); /* data source: E1 or E5b */
-    
-	adj_utcweek(raw->time,utc);
+
+	decode_gal_inav(raw->subfrm[sat-1],NULL,ion,utc);
+
+	adj_utcweek(raw->time,utc,8);
 	set_ion_param(raw,sat,NAV_GAL_INAV,ion);
 	set_utc_param(raw,sat,NAV_GAL_INAV,utc);
 
@@ -1067,7 +1069,7 @@ static int decode_qzsrawl6(raw_t *raw){
 static int decode_navicraw(raw_t *raw)
 {
     eph_t eph={0};
-    double ion[8],utc[9];
+    double ion[8]={0},utc[9]={0},eop[7]={0};
     uint8_t *p=raw->buff+14,buff[40];
     int i,id,svid,sat,prn,ret=0;
     
@@ -1095,7 +1097,7 @@ static int decode_navicraw(raw_t *raw)
     memcpy(raw->subfrm[sat-1]+id*37,buff,37);
     
     if (id==1) { /* subframe 2 */
-        if (!decode_irn_nav(raw->subfrm[sat-1],&eph,NULL,NULL)) return 0;
+        if (!decode_irn_nav(raw->subfrm[sat-1],&eph,NULL,NULL,NULL)) return 0;
         
         if (!strstr(raw->opt,"-EPHALL")) {
             if (eph.iode==raw->nav.eph[sat-1].iode&&
@@ -1110,12 +1112,13 @@ static int decode_navicraw(raw_t *raw)
         return 2;
     }
     else if (id==2||id==3) { /* subframe 3 or 4 */
-        if (decode_irn_nav(raw->subfrm[sat-1],NULL,ion,NULL)) {
+        if (decode_irn_nav(raw->subfrm[sat-1],NULL,ion,NULL,eop)) {
 			set_ion_param(raw,sat,NAV_IRN_LNAV,ion);
+			set_eop_param(raw,sat,NAV_IRN_LNAV,eop);
 			ret=9;
 		}
-		if (decode_irn_nav(raw->subfrm[sat-1],NULL,NULL,utc)) {
-			adj_utcweek(raw->time,utc);
+		if (decode_irn_nav(raw->subfrm[sat-1],NULL,NULL,utc,NULL)) {
+			adj_utcweek(raw->time,utc,10);
             set_ion_param(raw,sat,NAV_IRN_LNAV,utc);
             ret=9;
         }
@@ -1128,7 +1131,7 @@ static int decode_navicraw(raw_t *raw)
 static int decode_navicrawl1(raw_t *raw)
 {
     eph_t eph={0};
-    double ion[8],utc[8];
+    double ion[8]={0},utc[8]={0},eop[7]={0};
     uint8_t *p=raw->buff+14,buff[228];
     int i,id,svid,sat,prn,pgn;
 
@@ -1152,13 +1155,17 @@ static int decode_navicrawl1(raw_t *raw)
         setbitu(buff,32*i,32,U4(p));
 	}
 
-	if (!decode_irn_l1(buff,&eph,NULL,NULL,0)) return 0;
+	if (!decode_irn_l1(buff,&eph,NULL,NULL,NULL,0)) return 0;
 
 	id=getbitu(buff,1272,6); /* subframe 3 page ID */
-	if (id==1) {  /* iono/UTC */
-		if (!decode_bds_cnav1(raw->subfrm[sat-1],NULL,ion,utc,0)) return 0;
-		set_ion_param(raw,sat,NAV_IRN_L1NV,ion);
+	if (id==17) {  /* UTC */
+		if (!decode_irn_l1(buff,NULL,NULL,utc,NULL,0)) return 0;
 		set_utc_param(raw,sat,NAV_IRN_L1NV,utc);
+        /*return 9;*/
+	} else if (id==10) {  /* EOP/iono */
+		if (!decode_irn_l1(buff,NULL,ion,NULL,eop,0)) return 0;
+		set_ion_param(raw,sat,NAV_IRN_L1NV,ion);
+		set_eop_param(raw,sat,NAV_IRN_L1NV,eop);
         /*return 9;*/
 	}
 

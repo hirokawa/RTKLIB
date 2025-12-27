@@ -563,7 +563,7 @@ extern "C" {
 #define SF_OFST_BDS_CNAV2	418		/* Offset of raw->subfrm for BDS CNAV-2 */
 #define SF_OFST_BDS_CNAV3	562		/* Offset of raw->subfrm for BDS CNAV-3 */
 #define SF_OFST_GAL_INAV	0		/* Offset of raw->subfrm for GAL INAV */
-#define SF_OFST_GAL_FNAV	176		/* Offset of raw->subfrm for GAL FNAV */
+#define SF_OFST_GAL_FNAV	96		/* Offset of raw->subfrm for GAL FNAV */
 #define SF_OFST_GAL_CNAV	283		/* Offset of raw->subfrm for GAL CNAV */
 
 #define P2_5        0.03125             /* 2^-5 */
@@ -994,15 +994,6 @@ typedef struct {        /* navigation data type */
 	ion_t ion[NION];    /* Ionospheric delay parameter */
 	sto_t sto[NTSYS];   /* System Time Offset parameters */
 	eop_t eop[NTSYS];   /* earth orientation parameters */
-#if 0
-	double utc_gps[8];  /* GPS delta-UTC parameters {A0,A1,Tot,WNt,dt_LS,WN_LSF,DN,dt_LSF} */
-	double utc_glo[8];  /* GLONASS UTC time parameters {tau_C,tau_GPS} */
-	double utc_gal[8];  /* Galileo UTC parameters */
-	double utc_qzs[8];  /* QZS UTC parameters */
-	double utc_cmp[8];  /* BeiDou UTC parameters */
-	double utc_irn[9];  /* IRNSS UTC parameters {A0,A1,Tot,...,dt_LSF,A2} */
-	double utc_sbs[4];  /* SBAS UTC parameters */
-#endif
 	int glo_fcn[32];    /* GLONASS FCN + 8 */
     double cbias[MAXSAT][3]; /* satellite DCB (0:P1-P2,1:P1-C1,2:P2-C2) (m) */
     double rbias[MAXRCV][2][3]; /* receiver DCB (0:P1-P2,1:P1-C1,2:P2-C2) (m) */
@@ -1771,12 +1762,13 @@ EXPORT int decode_gal_fnav(const uint8_t *buff, eph_t *eph, double *ion,
 						   double *utc);
 EXPORT int decode_gal_cnav(const uint8_t *buff, nav_t *nav);
 EXPORT int decode_irn_nav(const uint8_t *buff, eph_t *eph, double *ion,
-						  double *utc);
+						  double *utc, double *eop);
 EXPORT int decode_irn_l1(const uint8_t *buff, eph_t *eph, double *ion,
-						  double *utc, int mode);
-EXPORT void adj_utcweek(gtime_t time, double *utc);
+						  double *utc, double *eop, int mode);
+EXPORT void adj_utcweek(gtime_t time, double *utc, int bit);
 EXPORT void set_ion_param(raw_t *raw, int sat, navtype_t navtype, double *ion);
 EXPORT void set_utc_param(raw_t *raw, int sat, navtype_t navtype, double *utc);
+EXPORT void set_eop_param(raw_t *raw, int sat, navtype_t navtype, double *eop);
 EXPORT void sto2utc(sto_t *sto, double *utc);
 
 EXPORT int init_raw   (raw_t *raw, int format);

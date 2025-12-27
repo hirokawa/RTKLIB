@@ -188,6 +188,31 @@ static int decode_irn_ion(const uint8_t *buff, double *ion)
     ion[7]=getbits(buff,i,8)*P2P16;
     return 1;
 }
+/* decode NavIC/IRNSS EOP parameters ----------------------------------------*/
+static int decode_irn_eop(const uint8_t *buff, double *eop)
+{
+    int i,id3,id4;
+
+    trace(4,"decode_irn_eop:\n");
+
+    /* subframe 3 and 4 message ids */
+    id3=getbitu(buff,8*37*2+30,6);
+    id4=getbitu(buff,8*37*3+30,6);
+
+    /* 11: eop and ionosphere coefficients */
+	if      (id3==11) i=8*37*2+36;
+    else if (id4==11) i=8*37*3+36;
+    else return 0;
+
+	eop[0]=getbitu(buff,i,16)*16; 	 i+=16; /* t_eop */
+	eop[1]=getbits(buff,i,21)*P2_20; i+=21; /* PM_x */
+	eop[2]=getbits(buff,i,15)*P2_21; i+=15; /* PM_xd */
+	eop[3]=getbits(buff,i,21)*P2_20; i+=21; /* PM_y */
+	eop[4]=getbits(buff,i,15)*P2_21; i+=15; /* PM_yd */
+	eop[5]=getbits(buff,i,31)*P2_24; i+=31; /* dUT1 */
+	eop[6]=getbits(buff,i,19)*P2_25; i+=19; /* dUT1_dt */
+    return 1;
+}
 /* decode NavIC/IRNSS UTC parameters -----------------------------------------*/
 static int decode_irn_utc(const uint8_t *buff, double *utc)
 {
@@ -230,17 +255,22 @@ static int decode_irn_utc(const uint8_t *buff, double *utc)
 *                                 utc[0-3]: A0,A1,tot,WNt
 *                                 utc[4-7]: dt_LS,WN_LSF,DN,dt_LSF
 *                                 utc[8]  : A2
+*          double *eop      IO  NavIC EOP parameters
+*                                 eop[0]: t_eop
+*                                 eop[1-4]: pmx,pmxd,pmy,pmyd
+*                                 eop[5-6]: dut1,dut1d
 * return : status (1:ok,0:error)
 *-----------------------------------------------------------------------------*/
 extern int decode_irn_nav(const uint8_t *buff, eph_t *eph, double *ion,
-                          double *utc)
+                          double *utc, double *eop)
 {
     trace(4,"decode_irn_nav:\n");
     
     if (eph&&!decode_irn_eph(buff,eph)) return 0;
     if (ion&&!decode_irn_ion(buff,ion)) return 0;
     if (utc&&!decode_irn_utc(buff,utc)) return 0;
-    return 2;
+    if (eop&&!decode_irn_eop(buff,eop)) return 0;
+	return 2;
 }
 /* decode NavIC/IRNSS L1 ephemeris -------------------------------------------*/
 static int decode_irn_l1_eph(const uint8_t *buff, eph_t *eph, int mode)
@@ -299,10 +329,10 @@ static int decode_irn_l1_eph(const uint8_t *buff, eph_t *eph, int mode)
 
     eph->integ = getbitu(buff,i, 1);  i+= 1; /* integrity status flag */
 
-	eph->ttr=gpst2time(eph->week,tow);
+	eph->ttr=gst2time(eph->week,tow);
     if      (eph->toes<tow-302400.0) eph->week++;
     else if (eph->toes>tow+302400.0) eph->week--;
-    eph->toe=gpst2time(eph->week,eph->toes);
+    eph->toe=gst2time(eph->week,eph->toes);
     eph->toc=eph->toe;
 
     i=ofst3;
@@ -318,10 +348,15 @@ static int decode_irn_l1_eph(const uint8_t *buff, eph_t *eph, int mode)
 /* decode NavIC/IRNSS iono parameters ----------------------------------------*/
 static int decode_irn_l1_ion(const uint8_t *buff, double *ion, int mode)
 {
-	int ofst3=((mode==1)?640:1252)+7;
-	int i=138+ofst3 ;
+	int ofst3=((mode==1)?640:1252),mid,invld,i=ofst3;
 
 	trace(4,"decode_irn_l1_ion:\n");
+
+	mid=getbitu(buff,i,6);          i+=6;
+	invld=getbitu(buff,i,1);        i++;
+	if (mid!=10||invld) return 0;
+
+    i+=138; /* skip EOP parameters */
 
     ion[0]=getbits(buff,i,8)*P2_30; i+=8;
     ion[1]=getbits(buff,i,8)*P2_27; i+=8;
@@ -333,13 +368,36 @@ static int decode_irn_l1_ion(const uint8_t *buff, double *ion, int mode)
     ion[7]=getbits(buff,i,8)*P2P16;
 	return 1;
 }
+/* decode NavIC/IRNSS EOP parameters ----------------------------------------*/
+static int decode_irn_l1_eop(const uint8_t *buff, double *eop, int mode)
+{
+	int ofst3=((mode==1)?640:1252),mid,invld,i=ofst3;
+
+	trace(4,"decode_irn_l1_eop:\n");
+
+	mid=getbitu(buff,i,6);          i+=6;
+	invld=getbitu(buff,i,1);        i++;
+	if (mid!=10||invld) return 0;
+
+	eop[0]=getbitu(buff,i,16)*16; 	 i+=16; /* t_eop */
+	eop[1]=getbits(buff,i,21)*P2_20; i+=21; /* PM_x */
+	eop[2]=getbits(buff,i,15)*P2_21; i+=15; /* PM_xd */
+	eop[3]=getbits(buff,i,21)*P2_20; i+=21; /* PM_y */
+	eop[4]=getbits(buff,i,15)*P2_21; i+=15; /* PM_yd */
+	eop[5]=getbits(buff,i,31)*P2_24; i+=31; /* dUT1 */
+	eop[6]=getbits(buff,i,19)*P2_25; i+=19; /* dUT1_dt */
+	return 1;
+}
 /* decode NavIC/IRNSS UTC parameters -----------------------------------------*/
 static int decode_irn_l1_utc(const uint8_t *buff, double *utc, int mode)
 {
-	int ofst3=((mode==1)?640:1252)+7;
-	int i=ofst3,iodt,flg_utc;
+	int ofst3=((mode==1)?640:1252),mid,invld,i=ofst3,iodt;
 
 	trace(4,"decode_irn_l1_utc:\n");
+
+	mid=getbitu(buff,i,6);          i+=6;
+	invld=getbitu(buff,i,1);        i++;
+	if (mid!=17||invld) return 0;
 
 	iodt=getbitu(buff,i,3);			i+=3;
 
@@ -369,88 +427,95 @@ static int decode_irn_l1_utc(const uint8_t *buff, double *utc, int mode)
 *                                 utc[0-3]: A0,A1,tot,WNt
 *                                 utc[4-7]: dt_LS,WN_LSF,DN,dt_LSF
 *                                 utc[8]  : A2
+*          double *eop      IO  NavIC EOP parameters
+*                                 eop[0]: t_eop
+*                                 eop[1-4]: pmx,pmxd,pmy,pmyd
+*                                 eop[5-6]: dut1,dut1d
 * return : status (1:ok,0:error)
 *-----------------------------------------------------------------------------*/
 extern int decode_irn_l1(const uint8_t *buff, eph_t *eph, double *ion,
-						  double *utc, int mode)
+						  double *utc, double *eop, int mode)
 {
 	trace(4,"decode_irn_l1:\n");
 
 	if (eph&&!decode_irn_l1_eph(buff,eph,mode)) return 0;
 	if (ion&&!decode_irn_l1_ion(buff,ion,mode)) return 0;
 	if (utc&&!decode_irn_l1_utc(buff,utc,mode)) return 0;
+	if (eop&&!decode_irn_l1_eop(buff,eop,mode)) return 0;
 	return 1;
 }
 /* decode Galileo I/NAV ephemeris --------------------------------------------*/
 static int decode_gal_inav_eph(const uint8_t *buff, eph_t *eph)
 {
-    eph_t eph_gal={0};
-    double tow,toc,tt,sqrtA;
-    int i,week,svid,e5b_hs,e1b_hs,e5b_dvs,e1b_dvs,type[6],iod_nav[4];
-    
-    trace(4,"decode_gal_inav_eph:\n");
-    
-    i=128; /* word type 1 */
-    type[0]     =getbitu(buff,i, 6);              i+= 6;
-    iod_nav[0]  =getbitu(buff,i,10);              i+=10;
-    eph_gal.toes=getbitu(buff,i,14)*60.0;         i+=14;
-    eph_gal.M0  =getbits(buff,i,32)*P2_31*SC2RAD; i+=32;
-    eph_gal.e   =getbitu(buff,i,32)*P2_33;        i+=32;
-    sqrtA       =getbitu(buff,i,32)*P2_19;
-    
-    i=128*2; /* word type 2 */
-    type[1]     =getbitu(buff,i, 6);              i+= 6;
-    iod_nav[1]  =getbitu(buff,i,10);              i+=10;
-    eph_gal.OMG0=getbits(buff,i,32)*P2_31*SC2RAD; i+=32;
-    eph_gal.i0  =getbits(buff,i,32)*P2_31*SC2RAD; i+=32;
-    eph_gal.omg =getbits(buff,i,32)*P2_31*SC2RAD; i+=32;
-    eph_gal.idot=getbits(buff,i,14)*P2_43*SC2RAD;
-    
-    i=128*3; /* word type 3 */
-    type[2]     =getbitu(buff,i, 6);              i+= 6;
-    iod_nav[2]  =getbitu(buff,i,10);              i+=10;
-    eph_gal.OMGd=getbits(buff,i,24)*P2_43*SC2RAD; i+=24;
-    eph_gal.deln=getbits(buff,i,16)*P2_43*SC2RAD; i+=16;
-    eph_gal.cuc =getbits(buff,i,16)*P2_29;        i+=16;
-    eph_gal.cus =getbits(buff,i,16)*P2_29;        i+=16;
-    eph_gal.crc =getbits(buff,i,16)*P2_5;         i+=16;
-    eph_gal.crs =getbits(buff,i,16)*P2_5;         i+=16;
-    eph_gal.sva =getbitu(buff,i, 8);
-    
-    i=128*4; /* word type 4 */
-    type[3]     =getbitu(buff,i, 6);              i+= 6;
-    iod_nav[3]  =getbitu(buff,i,10);              i+=10;
-    svid        =getbitu(buff,i, 6);              i+= 6;
-    eph_gal.cic =getbits(buff,i,16)*P2_29;        i+=16;
-    eph_gal.cis =getbits(buff,i,16)*P2_29;        i+=16;
-    toc         =getbitu(buff,i,14)*60.0;         i+=14;
-    eph_gal.f0  =getbits(buff,i,31)*P2_34;        i+=31;
-    eph_gal.f1  =getbits(buff,i,21)*P2_46;        i+=21;
-    eph_gal.f2  =getbits(buff,i, 6)*P2_59;
-    
-    i=128*5; /* word type 5 */
-    type[4]     =getbitu(buff,i, 6);              i+= 6+11+11+14+5;
-    eph_gal.tgd[0]=getbits(buff,i,10)*P2_32;      i+=10; /* BGD E5a/E1 */
-    eph_gal.tgd[1]=getbits(buff,i,10)*P2_32;      i+=10; /* BGD E5b/E1 */
-    e5b_hs      =getbitu(buff,i, 2);              i+= 2;
-    e1b_hs      =getbitu(buff,i, 2);              i+= 2;
-    e5b_dvs     =getbitu(buff,i, 1);              i+= 1;
-    e1b_dvs     =getbitu(buff,i, 1);              i+= 1;
-    week        =getbitu(buff,i,12);              i+=12; /* gst-week */
-    tow         =getbitu(buff,i,20);
-    
-    /* test word types */
-    if (type[0]!=1||type[1]!=2||type[2]!=3||type[3]!=4||type[4]!=5) {
-        trace(3,"decode_gal_inav error: type=%d %d %d %d %d\n",type[0],type[1],
-              type[2],type[3],type[4]);
-        return 0;
-    }
+	eph_t eph_gal={0};
+	double tow,toc,tt,sqrtA;
+	int i,k,week,svid,e5b_hs,e1b_hs,e5b_dvs,e1b_dvs,type[6],iod_nav[4];
+
+	trace(4,"decode_gal_inav_eph:\n");
+
+	/* test word types */
+	for (k=0;k<5;k++) {
+		type[k]=getbitu(buff,128*k, 6);
+	}
+
+	if (type[0]!=1||type[1]!=2||type[2]!=3||type[3]!=4||type[4]!=5) {
+		trace(3,"decode_gal_inav error: type=%d %d %d %d %d\n",type[0],type[1],
+			  type[2],type[3],type[4]);
+		return 0;
+	}
+
+	for (k=0;k<4;k++) {
+		iod_nav[k]=getbitu(buff,128*k+6,10);
+	}
+
     /* test consistency of iod_nav */
-    if (iod_nav[0]!=iod_nav[1]||iod_nav[0]!=iod_nav[2]||iod_nav[0]!=iod_nav[3]) {
-        trace(3,"decode_gal_inav error: iod_nav=%d %d %d %d\n",iod_nav[0],
-              iod_nav[1],iod_nav[2],iod_nav[3]);
-        return 0;
-    }
+	if (iod_nav[0]!=iod_nav[1]||iod_nav[0]!=iod_nav[2]||iod_nav[0]!=iod_nav[3]) {
+		trace(3,"decode_gal_inav error: iod_nav=%d %d %d %d\n",iod_nav[0],
+			  iod_nav[1],iod_nav[2],iod_nav[3]);
+		return 0;
+	}
+
+	i=16; /* word type 1 */
+	eph_gal.toes=getbitu(buff,i,14)*60.0;         i+=14;
+	eph_gal.M0  =getbits(buff,i,32)*P2_31*SC2RAD; i+=32;
+	eph_gal.e   =getbitu(buff,i,32)*P2_33;        i+=32;
+	sqrtA       =getbitu(buff,i,32)*P2_19;
+
+	i=128*1+16; /* word type 2 */
+	eph_gal.OMG0=getbits(buff,i,32)*P2_31*SC2RAD; i+=32;
+	eph_gal.i0  =getbits(buff,i,32)*P2_31*SC2RAD; i+=32;
+	eph_gal.omg =getbits(buff,i,32)*P2_31*SC2RAD; i+=32;
+	eph_gal.idot=getbits(buff,i,14)*P2_43*SC2RAD;
+
+	i=128*2+16; /* word type 3 */
+	eph_gal.OMGd=getbits(buff,i,24)*P2_43*SC2RAD; i+=24;
+	eph_gal.deln=getbits(buff,i,16)*P2_43*SC2RAD; i+=16;
+	eph_gal.cuc =getbits(buff,i,16)*P2_29;        i+=16;
+	eph_gal.cus =getbits(buff,i,16)*P2_29;        i+=16;
+	eph_gal.crc =getbits(buff,i,16)*P2_5;         i+=16;
+	eph_gal.crs =getbits(buff,i,16)*P2_5;         i+=16;
+	eph_gal.sva =getbitu(buff,i, 8);
+
+	i=128*3+16; /* word type 4 */
+	svid        =getbitu(buff,i, 6);              i+= 6;
+	eph_gal.cic =getbits(buff,i,16)*P2_29;        i+=16;
+	eph_gal.cis =getbits(buff,i,16)*P2_29;        i+=16;
+	toc         =getbitu(buff,i,14)*60.0;         i+=14;
+	eph_gal.f0  =getbits(buff,i,31)*P2_34;        i+=31;
+	eph_gal.f1  =getbits(buff,i,21)*P2_46;        i+=21;
+	eph_gal.f2  =getbits(buff,i, 6)*P2_59;
+
+	i=128*4; /* word type 5 */
+	i+= 47;
+	eph_gal.tgd[0]=getbits(buff,i,10)*P2_32;      i+=10; /* BGD E5a/E1 */
+	eph_gal.tgd[1]=getbits(buff,i,10)*P2_32;      i+=10; /* BGD E5b/E1 */
+	e5b_hs      =getbitu(buff,i, 2);              i+= 2;
+	e1b_hs      =getbitu(buff,i, 2);              i+= 2;
+	e5b_dvs     =getbitu(buff,i, 1);              i+= 1;
+	e1b_dvs     =getbitu(buff,i, 1);              i+= 1;
+	week        =getbitu(buff,i,12);              i+=12; /* gst-week */
+	tow         =getbitu(buff,i,20);
+
     if (!(eph_gal.sat=satno(SYS_GAL,svid))) {
         trace(2,"decode_gal_inav svid error: svid=%d\n",svid);
         return 0;
@@ -473,22 +538,22 @@ static int decode_gal_inav_eph(const uint8_t *buff, eph_t *eph)
 /* decode Galileo I/NAV iono parameters --------------------------------------*/
 static int decode_gal_inav_ion(const uint8_t *buff, double *ion)
 {
-    int i=128*5; /* word type 5 */
+    int i=128*4; /* word type 5 */
 
-    trace(4,"decode_gal_inav_ion:\n");
-    
-    if (getbitu(buff,i,6)!=5) return 0;
-    i+=6;
-    ion[0]=getbitu(buff,i,11)*0.25;  i+=11;
-    ion[1]=getbits(buff,i,11)*P2_8;  i+=11;
-    ion[2]=getbits(buff,i,14)*P2_15; i+=14;
-    ion[3]=getbitu(buff,i, 5);
-    return 1;
+	trace(4,"decode_gal_inav_ion:\n");
+
+	if (getbitu(buff,i,6)!=5) return 0;
+	i+=6;
+	ion[0]=getbitu(buff,i,11)*0.25;  i+=11;
+	ion[1]=getbits(buff,i,11)*P2_8;  i+=11;
+	ion[2]=getbits(buff,i,14)*P2_15; i+=14;
+	ion[3]=getbitu(buff,i, 5);
+	return 1;
 }
 /* decode Galileo I/NAV UTC parameters ---------------------------------------*/
 static int decode_gal_inav_utc(const uint8_t *buff, double *utc)
 {
-    int i=128*6; /* word type 6 */
+	int i=128*5; /* word type 6 */
     
     trace(4,"decode_gal_inav_utc:\n");
     
@@ -2468,19 +2533,19 @@ extern int input_rawf(raw_t *raw, int format, FILE *fp)
     return -2;
 }
 
-/* UTC 8-bit week -> full week -----------------------------------------------*/
-extern void adj_utcweek(gtime_t time, double *utc)
+/* UTC 8/10-bit week -> full week -----------------------------------------------*/
+extern void adj_utcweek(gtime_t time, double *utc, int bit)
 {
-	int week;
+	int week, ofst=(bit==8)?256:1024, ofst2=(ofst>>1)-1;
     double week_utc=utc[3];
 
     time2gpst(time,&week);
-	utc[3]+=week/256*256;
-	if      (utc[3]<week-127) utc[3]+=256;
-	else if (utc[3]>week+127) utc[3]-=256;
-	utc[5]+=week/256*256;
-	if      (utc[5]<week-127) utc[5]+=256;
-	else if (utc[5]>week+127) utc[5]-=256;
+	utc[3]+=week/ofst*ofst;
+	if      (utc[3]<week-ofst2) utc[3]+=ofst;
+	else if (utc[3]>week+ofst2) utc[3]-=ofst;
+	utc[5]+=week/ofst*ofst;
+	if      (utc[5]<week-ofst2) utc[5]+=ofst;
+	else if (utc[5]>week+ofst2) utc[5]-=ofst;
 }
 
 /* set ionosphere delay model parameters */
@@ -2541,17 +2606,20 @@ extern void set_ion_param(raw_t *raw, int sat, navtype_t navtype, double *ion)
 /* set UTC parameters */
 extern void set_utc_param(raw_t *raw, int sat, navtype_t navtype, double *utc)
 {
-	int sys,tsys=TSYS_GPS;
+	int sys=satsys(sat,NULL),tsys=TSYS_GPS;
     sto_t *sto;
 
-	sys=satsys(sat,NULL);
 	if (sys==SYS_NONE) return;
 
-	if (sys==SYS_QZS) {
-		tsys=TSYS_QZS;
-	}
-	else {
-		tsys=TSYS_GPS;
+	switch(sys) {
+		case SYS_GPS: tsys=TSYS_GPS;break;
+		case SYS_GLO: tsys=TSYS_GLO;break;
+		case SYS_GAL: tsys=TSYS_GAL;break;
+		case SYS_QZS: tsys=TSYS_QZS;break;
+		case SYS_CMP: tsys=TSYS_CMP;break;
+		case SYS_SBS: tsys=TSYS_SBS;break;
+		case SYS_IRN: tsys=TSYS_IRN;break;
+		default: tsys=TSYS_GPS;
 	}
 
 	sto=&raw->nav.sto[tsys];
@@ -2565,6 +2633,40 @@ extern void set_utc_param(raw_t *raw, int sat, navtype_t navtype, double *utc)
 	sto->dt_ls=utc[4];
 	sto->dt_lsf=utc[7];
 }
+/* set EOP parameters */
+extern void set_eop_param(raw_t *raw, int sat, navtype_t navtype, double *eop)
+{
+	int sys=satsys(sat,NULL),tsys=TSYS_GPS,te=0,week;
+    eop_t *eopd;
+
+	if (sys==SYS_NONE) return;
+
+	switch(sys) {
+		case SYS_GPS: tsys=TSYS_GPS;te=(navtype==NAV_GPS_LNAV)?0:1;break;
+		case SYS_GLO: tsys=TSYS_GLO;te=3;break;
+		case SYS_QZS: tsys=TSYS_QZS;te=(navtype==NAV_QZS_LNAV)?0:1;break;
+		case SYS_CMP: tsys=TSYS_CMP;te=1;
+		case SYS_IRN: tsys=TSYS_IRN;te=(navtype==NAV_IRN_LNAV)?0:2;break;
+		default: return;
+	}
+
+	eopd=&raw->nav.eop[tsys];
+	eopd->sat=sat;
+	eopd->type=te;
+	eopd->xp[0]=eop[1];
+	eopd->xp[1]=eop[2];
+	eopd->xp[2]=0.0;
+	eopd->yp[0]=eop[3];
+	eopd->yp[1]=eop[4];
+	eopd->yp[2]=0.0;
+	eopd->dut1[0]=eop[5];
+	eopd->dut1[1]=eop[6];
+
+	eopd->ttm=raw->time;
+    time2gpst(raw->time,&week);
+	eopd->t0=gpst2time(week,eop[0]);
+}
+
 /* set sto to utc array */
 extern void sto2utc(sto_t *sto, double *utc)
 {

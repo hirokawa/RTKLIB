@@ -730,7 +730,7 @@ static int decode_qzssrawsubframeb(raw_t *raw)
     }
     else if (id==4||id==5) {
         if (!decode_gps_lnav(raw->subfrm[sat-1],NULL,NULL,ion,utc,SYS_QZS)) return 0;
-		adj_utcweek(raw->time,utc);
+		adj_utcweek(raw->time,utc,8);
         set_ion_param(raw,sat,NAV_QZS_LNAV,ion);
         set_utc_param(raw,sat,NAV_QZS_LNAV,utc);
         return 9;

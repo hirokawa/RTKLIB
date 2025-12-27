@@ -403,7 +403,7 @@ static int decode_alm1(int sat, raw_t *raw)
 
 	navtype=(sys==SYS_GPS)?NAV_GPS_LNAV:NAV_QZS_LNAV;
 	decode_gps_lnav(raw->subfrm[sat-1],NULL,raw->nav.alm,ion,utc,sys);
-	adj_utcweek(raw->time,utc);
+	adj_utcweek(raw->time,utc,8);
 	set_ion_param(raw,sat,navtype,ion);
 	set_utc_param(raw,sat,navtype,utc);
     return 9;
@@ -421,7 +421,7 @@ static int decode_alm2(int sat, raw_t *raw)
     }
     else if (sys==SYS_QZS) {
 		decode_gps_lnav(raw->subfrm[sat-1],NULL,raw->nav.alm,ion,utc,sys);
-		adj_utcweek(raw->time,utc);
+		adj_utcweek(raw->time,utc,8);
 		set_ion_param(raw,sat,NAV_QZS_LNAV,ion);
 		set_utc_param(raw,sat,NAV_QZS_LNAV,utc);
 	}
