@@ -912,7 +912,7 @@ typedef struct {        /* SBAS ionospheric corrections type */
 
 typedef struct {        /* system time offset, leapsec parameters */
 	int sat;            /* source satellite number/system */
-	int navtype;        /* type of navigation message */
+	navtype_t navtype;  /* type of navigation message */
 	int src;            /* source time ststem */
 	int dst;            /* destination time system */
 	int utcid;          /* UTC ID */

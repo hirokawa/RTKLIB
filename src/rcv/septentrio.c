@@ -456,7 +456,7 @@ static int decode_glorawca(raw_t *raw)
     if (!decode_glostr(raw->subfrm[sat-1],&geph,utc)) return 0;
     
 	/*matcpy(raw->nav.utc_glo,utc,8,1);*/
-    set_utc_param(raw,sat,NAV_GLO_FDMA,utc);
+    /*set_utc_param(raw,sat,NAV_GLO_FDMA,utc);*/
 
     if (geph.sat!=sat) {
         trace(2,"sbf glorawca satellite error: sat=%d %d\n",sat,geph.sat);
@@ -608,12 +608,13 @@ static int decode_galrawinav(raw_t *raw)
     }
     eph.code|=(src==17)?(1<<0):(1<<2); /* data source: E1 or E5b */
 
-	decode_gal_inav(raw->subfrm[sat-1],NULL,ion,utc);
-
-	adj_utcweek(raw->time,utc,8);
-	set_ion_param(raw,sat,NAV_GAL_INAV,ion);
-	set_utc_param(raw,sat,NAV_GAL_INAV,utc);
-
+	if(decode_gal_inav(raw->subfrm[sat-1],NULL,ion,NULL)) {
+		set_ion_param(raw,sat,NAV_GAL_INAV,ion);
+    }
+	if(decode_gal_inav(raw->subfrm[sat-1],NULL,NULL,utc)) {
+		adj_utcweek(raw->time,utc,8);
+		set_utc_param(raw,sat,NAV_GAL_INAV,utc);
+	}
     if (!strstr(raw->opt,"-EPHALL")) {
         if (eph.iode==raw->nav.eph[sat-1].iode&&
             timediff(eph.toe,raw->nav.eph[sat-1].toe)==0.0&&
@@ -759,9 +760,12 @@ static int decode_bdsrawcnav1(raw_t *raw)
 
 	id=getbitu(buff,1272,6); /* subframe 3 page ID */
 	if (id==1) {  /* iono/UTC */
-		if (!decode_bds_cnav1(raw->subfrm[sat-1],NULL,ion,utc,0)) return 0;
-		set_ion_param(raw,sat,NAV_CMP_CNV1,ion);
-		set_utc_param(raw,sat,NAV_CMP_CNV1,utc);
+		if (decode_bds_cnav1(raw->subfrm[sat-1],NULL,ion,NULL,0)) {
+			set_ion_param(raw,sat,NAV_CMP_CNV1,ion);
+		}
+		if (decode_bds_cnav1(raw->subfrm[sat-1],NULL,NULL,utc,0)) {
+			set_utc_param(raw,sat,NAV_CMP_CNV1,utc);
+        }
         /*return 9;*/
 	}
 

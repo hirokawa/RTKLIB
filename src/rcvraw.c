@@ -327,7 +327,7 @@ static int decode_irn_l1_eph(const uint8_t *buff, eph_t *eph, int mode)
 	eph->tgd[5] = getbits(buff,i, 12)*P2_35; i+= 12; /* ISC L1D */
 	eph->tgd[6] = getbits(buff,i, 12)*P2_35; i+= 12; /* L1P if rsf=0, S if rsf=1 */
 
-    eph->integ = getbitu(buff,i, 1);  i+= 1; /* integrity status flag */
+    eph->integ = getbitu(buff,i, 1);  i+= 1; /* reference signal flag (rsf) */
 
 	eph->ttr=gst2time(eph->week,tow);
     if      (eph->toes<tow-302400.0) eph->week++;
@@ -1120,8 +1120,8 @@ static int decode_bds_cnav_eph2(const uint8_t *buff, int i, eph_t *eph)
     eph->cic   =getbits(buff,i,16)*P2_30; i+=16;
     eph->crs   =getbits(buff,i,24)*P2_8; i+=24;
     eph->crc   =getbits(buff,i,24)*P2_8; i+=24;
-    eph->cus   =getbits (buff,i,21)*P2_30; i+=21;
-    eph->cuc   =getbits (buff,i,21)*P2_30; i+=21;
+	eph->cus   =getbits(buff,i,21)*P2_30; i+=21;
+    eph->cuc   =getbits(buff,i,21)*P2_30; i+=21;
     return 0;
 }
 /* decode BDS CNAV Clock */
@@ -1131,9 +1131,9 @@ static int decode_bds_cnav_clk(const uint8_t *buff, int i, eph_t *eph)
 
 	toc=getbitu(buff,i,11)*300.0; i+=11;
 	eph->toc=bdt2gpst(bdt2time(eph->week,toc)); /* bdt -> gpst */
-	eph->f0=getbitu(buff,i,25)*P2_34; i+=25;
-	eph->f1=getbitu(buff,i,22)*P2_50; i+=22;
-	eph->f2=getbitu(buff,i,11)*P2_66; i+=11;
+	eph->f0=getbits(buff,i,25)*P2_34; i+=25;
+	eph->f1=getbits(buff,i,22)*P2_50; i+=22;
+	eph->f2=getbits(buff,i,11)*P2_66; i+=11;
 	return 0;
 }
 /* decode BDS CNAV group-delay */
@@ -1244,9 +1244,9 @@ static int decode_bds_cnav_sisa(const uint8_t *buff, int i, eph_t *eph)
 {
 	eph->tops=getbitu(buff,i,11)*300; i+=11;
 	eph->top=bdt2gpst(bdt2time(eph->week,eph->tops));
-	eph->urai[1]=getbitu(buff,i,5); i+=5; /* SISAI ocb */
-	eph->urai[2]=getbitu(buff,i,3); i+=3; /* SISAI oc1 */
-	eph->urai[3]=getbitu(buff,i,3); i+=3; /* SISAI oc2 */
+	eph->urai[1]=getbits(buff,i,5); i+=5; /* SISAI ocb */
+	eph->urai[2]=getbits(buff,i,3); i+=3; /* SISAI oc1 */
+	eph->urai[3]=getbits(buff,i,3); i+=3; /* SISAI oc2 */
 	return 0;
 }
 /* decode BeiDou B-CNAV1 ephemeris --------------------------------------------------
@@ -1267,10 +1267,11 @@ extern int decode_bds_cnav1(const uint8_t *buff,eph_t *eph,double *ion,
 {
     double tow,toas;
     int i=0,soh,ofst1=(mode==1)?872:0,ofst2=(mode==1)?0:72,ofst3=(mode==1)?608:1272;
-    uint8_t page;
+    int page=0;
     uint16_t week_a;
     alm_t alm;
 
+	page  =getbitu(buff,ofst3,6);
     soh = getbitu(buff,ofst1,8)*18; /* seconds of hour */
 
     if (eph) {
@@ -1301,29 +1302,30 @@ extern int decode_bds_cnav1(const uint8_t *buff,eph_t *eph,double *ion,
 
         eph->svh=getbitu(buff,i,2); i+=2;
         eph->integ=getbitu(buff,i,3); i+=3; /* DIF/SIF/AIF(B1C) */
-        eph->urai[4]=getbitu(buff,i,4); i+=4; /* sismai */
+        eph->urai[4]=getbits(buff,i,4); i+=4; /* SISMAI */
 
         if (page==1) {
-            eph->urai[0]=getbitu(buff,i,5); i+=5; /* SISAIoe */
+            eph->urai[0]=getbits(buff,i,5); i+=5; /* SISAIoe */
             decode_bds_cnav_sisa(buff,i,eph); i+=22;
         } else {
             return 0;
-        }
+		}
+        return 2;
     }
 
-    if (ion) {
+	if (ion) {
         if (page==1) {
             i=ofst3+42;
-            decode_bds_cnav_iono(buff,i,ion);
-        } else {
-            return 0;
-        }
-    }
+			return decode_bds_cnav_iono(buff,i,ion);
+		} else {
+			return 0;
+		}
+	}
 
-    if (utc) {
-        if (page==1) {
-            i=ofst3+116;
-            decode_bds_cnav_utc(buff,i,utc);
+	if (utc) {
+		if (page==1) {
+			i=ofst3+116;
+            return decode_bds_cnav_utc(buff,i,utc);
         } else {
             return 0;
         }
@@ -1331,7 +1333,8 @@ extern int decode_bds_cnav1(const uint8_t *buff,eph_t *eph,double *ion,
 
     trace(3,"decode_bds_cnav1: tod=%2d page=%d\n",(int)tow,page);
 
-    if (page==2) {
+	if (page==2) {
+        i=ofst3+15;
     	decode_bds_cnav_sisa(buff,i,eph); i+=22;
 		week_a=getbitu(buff,i,13); i+=13;
 		toas=getbitu(buff,i,8)*4096; i+=8;
@@ -1341,7 +1344,8 @@ extern int decode_bds_cnav1(const uint8_t *buff,eph_t *eph,double *ion,
         decode_bds_cnav_eop(buff,i,eop); i+=138;
         decode_bds_cnav_bgto(buff,i,eop); i+=68;
 #endif
-    } else if (page==4) {
+	} else if (page==4) {
+		i=ofst3+15;
     	decode_bds_cnav_sisa(buff,i,eph); i+=22;
 #if 0
     	decode_bds_cnav_midi_alm(buff,i,alm); i+=156;
@@ -1381,7 +1385,7 @@ extern int decode_bds_cnav2(const uint8_t *buff,eph_t *eph,double *ion,double *u
     	eph->week = getbitu(buff,i,13); i+=13;
     	eph->toe = bdt2gpst(bdt2time(eph->week,eph->toes)); /* bdt -> gpst */
         eph->integ = getbitu(buff,i,3)<<3; i+=3;  /* DIF/SIF/AIF(B2a) */
-        eph->urai[4]=getbitu(buff,i,4); i+=4;   /* SISMAI */
+        eph->urai[4]=getbits(buff,i,4); i+=4;   /* SISMAI */
         eph->integ|=getbitu(buff,i,3); i+=3;      /* DIF/SIF/AIF(B1C) */
         eph->iode = getbitu(buff,i,8); i+=8;
         decode_bds_cnav_eph1(buff,i,eph);       /* ephemeris I */
@@ -1389,7 +1393,7 @@ extern int decode_bds_cnav2(const uint8_t *buff,eph_t *eph,double *ion,double *u
         i=36*8+30; /* MT11 */
         eph->svh=getbitu(buff,i,2); i+=2;
         eph->integ = getbitu(buff,i,3)<<3; i+=3;  /* DIF/SIF/AIF(B2a) */
-        eph->urai[4]=getbitu(buff,i,4); i+=4;   /* SISMAI */
+        eph->urai[4]=getbits(buff,i,4); i+=4;   /* SISMAI */
         eph->integ|=getbitu(buff,i,3); i+=3;      /* DIF/SIF/AIF(B1C) */
         /* ephemeris II 222bits */
         decode_bds_cnav_eph2(buff,i,eph);       /* ephemeris II */
@@ -1399,7 +1403,7 @@ extern int decode_bds_cnav2(const uint8_t *buff,eph_t *eph,double *ion,double *u
         i=36*2*8+30; /* MT3x */
         eph->svh=getbitu(buff,i,2); i+=2;
         eph->integ = getbitu(buff,i,3)<<3; i+=3;  /* DIF/SIF/AIF(B2a) */
-        eph->urai[4]=getbitu(buff,i,4); i+=4;   /* SISMAI */
+        eph->urai[4]=getbits(buff,i,4); i+=4;   /* SISMAI */
         eph->integ|=getbitu(buff,i,3); i+=3;      /* DIF/SIF/AIF(B1C) */
         decode_bds_cnav_clk(buff,i,eph); i+=69; /* clock correction */
 
@@ -1453,10 +1457,12 @@ extern int decode_bds_cnav3(const uint8_t *buff, eph_t *eph, double *ion,
 	double *utc)
 {
 	uint8_t mt1,mt2;
-    int i=6,tow,prn=0;
+	int i=6,tow,prn=0,sys;
 
-    mt1 = getbitu(buff,  0,6);
-    mt2 = getbitu(buff,512,6);
+    sys=satsys(eph->sat,&prn);
+
+	mt1 = getbitu(buff,  0,6);
+	mt2 = getbitu(buff,512,6);
 
 	tow = getbitu(buff,512+6,20);
     trace(3,"decode_bds_cnav3: prn=%3d mt2=%2d tow=%6d\n",prn,mt2,tow);
@@ -1470,13 +1476,13 @@ extern int decode_bds_cnav3(const uint8_t *buff, eph_t *eph, double *ion,
 		decode_bds_cnav_eph2(buff,i,eph); i+=222;
 
 		eph->integ=getbitu(buff,i,3); i+=3;      /* DIF/SIF/AIF(B2bI) */
-		eph->urai[4]=getbitu(buff,i,4); i+=4;    /* SISMAI */
+		eph->urai[4]=getbits(buff,i,4); i+=4;    /* SISMAI */
 
 		i=512+26; /* MT30 clock correction, iono */
 		eph->week=getbitu(buff,i,13); i+=13+4;
 		/* clock 69bits */
 		decode_bds_cnav_clk(buff,i,eph); i+=69;
-        eph->tgd[1]=getbits(buff,i,12)*P2_34;       /* TGD_B2bI */
+        eph->tgd[4]=getbits(buff,i,12)*P2_34;       /* TGD_B2bI */
 	    eph->ttr=bdt2gpst(bdt2time(eph->week,tow)); /* bdt -> gpst */
 
 	    i=512+124+74+97+138;
@@ -2224,8 +2230,8 @@ static int decode_gps_cnav2_eph(const uint8_t *buff, eph_t *eph, int sys, int mo
     eph->f1   = getbits(buff,i, 20)*P2_48; i+= 20;
     eph->f2   = getbits(buff,i, 10)*P2_60; i+= 10;
     eph->tgd[0] = getbits(buff,i, 13)*P2_35; i+= 13;
-    eph->tgd[5] = getbits(buff,i, 13)*P2_35; i+= 13; /* ISC L1CP */
-    eph->tgd[6] = getbits(buff,i, 13)*P2_35; i+= 13; /* ISC L1CD */
+    eph->tgd[6] = getbits(buff,i, 13)*P2_35; i+= 13; /* ISC L1CP */
+	eph->tgd[5] = getbits(buff,i, 13)*P2_35; i+= 13; /* ISC L1CD */
     isf = getbitu(buff,i, 1);  i+= 1; /* integrity status flag */
     eph->week_op = getbitu(buff,i, 8);  i+= 8; /* data predict week number */
     eph->week_op=adjgpsweek_8bit(eph->week_op);
@@ -2623,13 +2629,23 @@ extern void set_utc_param(raw_t *raw, int sat, navtype_t navtype, double *utc)
 	}
 
 	sto=&raw->nav.sto[tsys];
-    sto->sat=sat;
+	sto->sat=sat;
+    sto->navtype=navtype;
     sto->src=tsys;
     sto->dst=TSYS_UTC;
 	sto->a[0]=utc[0];
 	sto->a[1]=utc[1];
-	sto->t0=gpst2time(utc[3],utc[2]);
-	sto->tlsf=gpst2time(utc[5],utc[6]*86400.0);
+	if (navtype==NAV_GLO_FDMA) return; /* only a0,a1 is available in GLO/FDMA */
+	if (sys==SYS_IRN) {
+		sto->t0=gst2time(utc[3],utc[2]);
+		sto->tlsf=gst2time(utc[5],utc[6]*86400.0);
+	} else if (sys==SYS_CMP) {
+		sto->t0=bdt2time(utc[3],utc[2]);
+		sto->tlsf=bdt2time(utc[5],utc[6]*86400.0);
+	} else {
+		sto->t0=gpst2time(utc[3],utc[2]);
+		sto->tlsf=gpst2time(utc[5],utc[6]*86400.0);
+    }
 	sto->dt_ls=utc[4];
 	sto->dt_lsf=utc[7];
 }

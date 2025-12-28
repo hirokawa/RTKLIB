@@ -708,7 +708,8 @@ static int decode_NE(raw_t *raw)
     if (!strstr(raw->opt,"-EPHALL")) {
         if (fabs(timediff(geph.toe,raw->nav.geph[prn-1].toe))<1.0&&
             geph.svh==raw->nav.geph[prn-1].svh) return 0; /* unchanged */
-    }
+	}
+    geph.navtype=NAV_GLO_FDMA;
     raw->nav.geph[prn-1]=geph;
     raw->ephsat=geph.sat;
     return 2;
@@ -768,7 +769,8 @@ static int decode_WE(raw_t *raw)
     if (!strstr(raw->opt,"-EPHALL")) {
         if (fabs(timediff(seph.t0,raw->nav.seph[prn-MINPRNSBS].t0))<1.0&&
             seph.sva==raw->nav.seph[prn-MINPRNSBS].sva) return 0; /* unchanged */
-    }
+	}
+    seph.navtype=NAV_SBS_L1NV;
     raw->nav.seph[prn-MINPRNSBS]=seph;
     raw->ephsat=seph.sat;
     return 2;
@@ -1326,6 +1328,7 @@ static int decode_cd(raw_t *raw)
         return 0;
     }
 
+    eph.sat=sat;
     for (i=0;i<len;i++,p+=4) {
         setbitu(subfrm,32*i,32,U4(p));
     }
