@@ -732,7 +732,7 @@ static int decode_bdsraw(raw_t *raw)
 static int decode_bdsrawcnav1(raw_t *raw)
 {
     eph_t eph={0};
-    double ion[8],utc[8];
+    double ion[8]={0},utc[8]={0},eop[7]={0};
     uint8_t *p=raw->buff+14,buff[228];
     int i,id,svid,sat,prn,pgn;
 
@@ -756,17 +756,21 @@ static int decode_bdsrawcnav1(raw_t *raw)
         setbitu(buff,32*i,32,U4(p));
 	}
 
-	if (!decode_bds_cnav1(buff,&eph,NULL,NULL,0)) return 0;
+	if (!decode_bds_cnav1(buff,&eph,NULL,NULL,NULL,0)) return 0;
 
 	id=getbitu(buff,1272,6); /* subframe 3 page ID */
 	if (id==1) {  /* iono/UTC */
-		if (decode_bds_cnav1(raw->subfrm[sat-1],NULL,ion,NULL,0)) {
+		if (decode_bds_cnav1(raw->subfrm[sat-1],NULL,ion,NULL,NULL,0)) {
 			set_ion_param(raw,sat,NAV_CMP_CNV1,ion);
 		}
-		if (decode_bds_cnav1(raw->subfrm[sat-1],NULL,NULL,utc,0)) {
+		if (decode_bds_cnav1(raw->subfrm[sat-1],NULL,NULL,utc,NULL,0)) {
 			set_utc_param(raw,sat,NAV_CMP_CNV1,utc);
+		}
+	} else if (id==3) { /* EOP/BGTO */
+		if (decode_bds_cnav1(raw->subfrm[sat-1],NULL,NULL,NULL,eop,0)) {
+			set_eop_param(raw,sat,NAV_CMP_CNV1,eop);
         }
-        /*return 9;*/
+		/*return 9;*/
 	}
 
     if (!strstr(raw->opt,"-EPHALL")) {
@@ -782,7 +786,7 @@ static int decode_bdsrawcnav1(raw_t *raw)
 static int decode_bdsrawcnav2(raw_t *raw)
 {
 	eph_t eph={0};
-	double ion[8],utc[8];
+	double ion[8]={0},utc[8]={0},eop[7]={0};
 	uint8_t *p=raw->buff+14,buff[72];
 	int i,id,svid,sat,prn,pgn,ofst;
 
@@ -819,14 +823,29 @@ static int decode_bdsrawcnav2(raw_t *raw)
 	memcpy(raw->subfrm[sat-1]+SF_OFST_BDS_CNAV2+ofst*36,buff,36);
 
 	if (id==30) {
-		if (!decode_bds_cnav2(raw->subfrm[sat-1]+SF_OFST_BDS_CNAV2,&eph,NULL,NULL)) return 0;
+		if (!decode_bds_cnav2(raw->subfrm[sat-1]+SF_OFST_BDS_CNAV2,&eph,
+			NULL,NULL,NULL,12)) return 0;
 	} else {
         return 0;
     }
 
     if (!strstr(raw->opt,"-EPHALL")) {
 		if (timediff(eph.toe,raw->nav.eph[sat-1+MAXSAT*2].toe)==0.0) return 0;
-    }
+	}
+
+	if (decode_bds_cnav2(raw->subfrm[sat-1]+SF_OFST_BDS_CNAV2,NULL,
+		ion,NULL,NULL,0)) {
+		set_ion_param(raw,sat,NAV_CMP_CNV2,ion);
+	}
+	if (decode_bds_cnav2(raw->subfrm[sat-1]+SF_OFST_BDS_CNAV2,NULL,
+		NULL,utc,NULL,0)) {
+		set_utc_param(raw,sat,NAV_CMP_CNV2,utc);
+	}
+	if (decode_bds_cnav2(raw->subfrm[sat-1]+SF_OFST_BDS_CNAV2,NULL,
+		NULL,NULL,eop,0)) {
+		set_eop_param(raw,sat,NAV_CMP_CNV2,eop);
+	}
+
     eph.sat=sat;
 	raw->nav.eph[sat-1+MAXSAT*2]=eph;
     raw->ephsat=sat;
@@ -837,7 +856,7 @@ static int decode_bdsrawcnav2(raw_t *raw)
 static int decode_bdsrawcnav3(raw_t *raw)
 {
 	eph_t eph={0};
-	double ion[8],utc[8];
+	double ion[8]={0},utc[8]={0},eop[7]={0};
 	uint8_t *p=raw->buff+14,buff[124];
 	uint32_t tmp;
 	int i,id,svid,sat,prn,pgn,ofst;
@@ -880,22 +899,29 @@ static int decode_bdsrawcnav3(raw_t *raw)
 		default: return 0;
 	}
 
-	for (i=0;i<61;i++) {
-		raw->subfrm[sat-1][SF_OFST_BDS_CNAV3+ofst*64+i]=getbitu(buff,12+i*8,8);
-	}
-
-   	/*memcpy(raw->subfrm[sat-1]+SF_OFST_BDS_CNAV3+(id-1)*64,buff,64);*/
+	memcpy(raw->subfrm[sat-1]+SF_OFST_BDS_CNAV3+ofst*64,buff,64);
 
 	if (id==30) {
 		if (!decode_bds_cnav3(raw->subfrm[sat-1]+SF_OFST_BDS_CNAV3,&eph,
-			NULL,NULL)) return 0;
+			NULL,NULL,NULL,0)) return 0;
 	} else {
         return 0;
     }
 
     if (!strstr(raw->opt,"-EPHALL")) {
 		if (timediff(eph.toe,raw->nav.eph[sat-1+MAXSAT*3].toe)==0.0) return 0;
-    }
+	}
+
+	if(decode_bds_cnav3(raw->subfrm[sat-1]+SF_OFST_BDS_CNAV3,NULL,ion,NULL,NULL,0)) {
+		set_ion_param(raw,sat,NAV_CMP_CNV3,ion);
+	}
+	if(decode_bds_cnav3(raw->subfrm[sat-1]+SF_OFST_BDS_CNAV3,NULL,NULL,utc,NULL,0)) {
+		set_utc_param(raw,sat,NAV_CMP_CNV3,utc);
+	}
+	if(decode_bds_cnav3(raw->subfrm[sat-1]+SF_OFST_BDS_CNAV3,NULL,NULL,NULL,eop,0)) {
+		set_eop_param(raw,sat,NAV_CMP_CNV3,eop);
+	}
+
     eph.sat=sat;
 	raw->nav.eph[sat-1+MAXSAT*3]=eph;
     raw->ephsat=sat;
@@ -907,10 +933,10 @@ static int decode_gpsrawcnav(raw_t *raw, int sys)
 {
     uint8_t *p=(raw->buff)+14;
 	int i,prn,sat,id,ofst=-1;
-	uint8_t viterbi_cnt,src,ch;
-	uint8_t buff[40];
+	uint8_t viterbi_cnt,src,ch,buff[40];
 	uint32_t tmp;
-    eph_t eph={0};
+	eph_t eph={0};
+	double ion[4]={0},utc[8]={0},eop[7]={0};
 
     if (raw->len!=60)
     {
@@ -944,12 +970,29 @@ static int decode_gpsrawcnav(raw_t *raw, int sys)
 		default: return 0;
 	}
 	memcpy(raw->subfrm[sat-1]+SF_OFST_GPS_CNAV+ofst*35,buff,35);
-	if(!decode_gps_cnav(raw->subfrm[sat-1]+SF_OFST_GPS_CNAV,&eph,NULL,NULL,NULL,sys))
+	if(!decode_gps_cnav(raw->subfrm[sat-1]+SF_OFST_GPS_CNAV,&eph,NULL,NULL,
+		NULL,NULL,sys))
         return 0;
 
 	if (!strstr(raw->opt,"-EPHALL")) {
 		if (timediff(eph.toe,raw->nav.eph[sat-1+MAXSAT].toe)==0.0) return 0;
-    }
+	}
+
+	id=(sys==SYS_GPS)?NAV_GPS_CNV2:NAV_QZS_CNV2;
+
+	if(decode_gps_cnav(raw->subfrm[sat-1]+SF_OFST_GPS_CNAV,NULL,
+		NULL,ion,NULL,NULL,sys)) {
+		set_ion_param(raw,sat,id,ion);
+	}
+	if (decode_gps_cnav(raw->subfrm[sat-1]+SF_OFST_GPS_CNAV,NULL,NULL,NULL,
+		utc,NULL,sys)) {
+		set_utc_param(raw,sat,id,utc);
+	}
+	if (decode_gps_cnav(raw->subfrm[sat-1]+SF_OFST_GPS_CNAV,NULL,NULL,NULL,
+		NULL,eop,sys)) {
+		set_eop_param(raw,sat,id,eop);
+	}
+
     eph.sat=sat;
 	raw->nav.eph[sat-1+MAXSAT]=eph;
 	raw->ephsat=sat;
@@ -961,12 +1004,13 @@ static int decode_gpsrawcnav(raw_t *raw, int sys)
 static int decode_gpsrawcnav2(raw_t *raw, int sys)
 {
 	uint8_t *p=(raw->buff)+8;
-	int i,prn,sat;
+	int i,prn,sat,id;
 	uint8_t viterbi_cnt,src,ch,crc[2],svid;
 	uint8_t buff[228];
 	uint16_t week;
 	uint32_t tmp;
 	double tow;
+	double ion[4]={0},utc[8]={0},eop[7]={0};
     eph_t eph={0};
 
 	if (raw->len!=248)
@@ -990,11 +1034,25 @@ static int decode_gpsrawcnav2(raw_t *raw, int sys)
 	for (i=0,p+=6;i<57;i++,p+=4) {
 		setbitu(buff,32*i,32,U4(p));
 	}
-	if (!decode_gps_cnav2(buff,&eph,NULL,NULL,NULL,sys,0)) return 0;
+
+	id=(sys==SYS_GPS)?NAV_GPS_CNV2:NAV_QZS_CNV2;
+
+	if (decode_gps_cnav2(buff,NULL,NULL,ion,NULL,NULL,sys,1)) {
+		set_ion_param(raw,sat,id,ion);
+	}
+	if (decode_gps_cnav2(buff,NULL,NULL,NULL,utc,NULL,sys,1)) {
+		set_utc_param(raw,sat,id,utc);
+	}
+	if (decode_gps_cnav2(buff,NULL,NULL,NULL,NULL,eop,sys,1)) {
+		set_eop_param(raw,sat,id,eop);
+	}
+
+	if (!decode_gps_cnav2(buff,&eph,NULL,NULL,NULL,NULL,sys,0)) return 0;
 
     if (!strstr(raw->opt,"-EPHALL")) {
 		if (timediff(eph.toe,raw->nav.eph[sat-1+MAXSAT*2].toe)==0.0) return 0;
 	}
+
 	eph.sat=sat;
 	raw->nav.eph[sat-1+MAXSAT*2]=eph;
     raw->ephsat=sat;
@@ -1116,8 +1174,11 @@ static int decode_navicraw(raw_t *raw)
         return 2;
     }
     else if (id==2||id==3) { /* subframe 3 or 4 */
-        if (decode_irn_nav(raw->subfrm[sat-1],NULL,ion,NULL,eop)) {
+        if (decode_irn_nav(raw->subfrm[sat-1],NULL,ion,NULL,NULL)) {
 			set_ion_param(raw,sat,NAV_IRN_LNAV,ion);
+			ret=9;
+		}
+		if (decode_irn_nav(raw->subfrm[sat-1],NULL,NULL,NULL,eop)) {
 			set_eop_param(raw,sat,NAV_IRN_LNAV,eop);
 			ret=9;
 		}

@@ -2922,7 +2922,7 @@ static void out_eop_sys4(FILE *fp, const eop_t *eop)
 	fprintf(fp,"\n");
 
 	fprintf(fp,"    ");
-	outnavf(fp,0.0); /* spare */
+	outblank(fp); /* spare */
 	outnavf(fp,eop->yp[0]); /* yp */
 	outnavf(fp,eop->yp[1]); /* ypd */
 	outnavf(fp,eop->yp[2]); /* ypdd */
@@ -3449,18 +3449,24 @@ extern int outrnxnavb(FILE *fp, const rnxopt_t *opt, const eph_t *eph)
 		if (opt->rnxver>=402) {
 			outnavf(fp,eph->integ); /* integrity flags */
 		} else {
-            outblank(fp); /* spare */
-        }
+			outblank(fp); /* spare */
+		}
 		outblank(fp); /* spare */
 	} else if (((sys==SYS_CMP)&&(navtype==NAV_CMP_CNV1||navtype==NAV_CMP_CNV2||
 					navtype==NAV_CMP_CNV3))) {
-		if (navtype==NAV_CMP_CNV1||navtype==NAV_CMP_CNV2) {
-            outnavf(fp,eph->tgd[4]); /* BDS: ISC B1Cd */
-            outnavf(fp,eph->tgd[5]); /* BDS: ISC B2ad */
-            outnavf(fp,eph->tgd[2]); /* BDS: TGD B1Cp */
-            outnavf(fp,eph->tgd[3]); /* BDS: TGD B2ap */
-            fprintf(fp,"\n%s",sep  );    
-        }
+		if (navtype==NAV_CMP_CNV1) {
+			outnavf(fp,eph->tgd[4]); /* BDS: ISC B1Cd */
+			outblank(fp); /* spare */
+			outnavf(fp,eph->tgd[2]); /* BDS: TGD B1Cp */
+			outnavf(fp,eph->tgd[3]); /* BDS: TGD B2ap */
+			fprintf(fp,"\n%s",sep  );
+		} else if (navtype==NAV_CMP_CNV2) {
+			outblank(fp); /* spare */
+			outnavf(fp,eph->tgd[5]); /* BDS: ISC B2ad */
+			outnavf(fp,eph->tgd[2]); /* BDS: TGD B1Cp */
+			outnavf(fp,eph->tgd[3]); /* BDS: TGD B2ap */
+			fprintf(fp,"\n%s",sep  );
+		}
 
         /* Line 7 or 8 */
         outnavf(fp,eph->urai[4]); /* SISMAI */

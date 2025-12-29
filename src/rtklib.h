@@ -559,9 +559,9 @@ extern "C" {
 #define SF_OFST_GPS_CNAV	150		/* Offset of raw->subfrm for GPS/QZS CNAV */
 #define SF_OFST_GPS_CNAV2	290		/* Offset of raw->subfrm for GPS/QZS CNAV2 */
 #define SF_OFST_BDS_D1D2	0		/* Offset of raw->subfrm for BDS D1/D2 */
-#define SF_OFST_BDS_CNAV1	190		/* Offset of raw->subfrm for BDS CNAV-1 */
-#define SF_OFST_BDS_CNAV2	418		/* Offset of raw->subfrm for BDS CNAV-2 */
-#define SF_OFST_BDS_CNAV3	562		/* Offset of raw->subfrm for BDS CNAV-3 */
+#define SF_OFST_BDS_CNAV2	380		/* Offset of raw->subfrm for BDS CNAV-2 */
+#define SF_OFST_BDS_CNAV3	524		/* Offset of raw->subfrm for BDS CNAV-3 */
+#define SF_OFST_BDS_CNAV1	588		/* Offset of raw->subfrm for BDS CNAV-1 */
 #define SF_OFST_GAL_INAV	0		/* Offset of raw->subfrm for GAL INAV */
 #define SF_OFST_GAL_FNAV	96		/* Offset of raw->subfrm for GAL FNAV */
 #define SF_OFST_GAL_CNAV	283		/* Offset of raw->subfrm for GAL CNAV */
@@ -1002,11 +1002,6 @@ typedef struct {        /* navigation data type */
     sbsion_t sbsion[MAXBAND+1]; /* SBAS ionosphere corrections */
     dgps_t dgps[MAXSAT]; /* DGPS corrections */
 	ssr_t ssr[MAXSAT];  /* SSR corrections */
-
-	gtime_t tm_utc[NTSYS]; /*  */
-	gtime_t tm_ion[NTSYS]; /*  */
-	int sat_utc[NTSYS];
-	int sat_ion[NTSYS];
 } nav_t;
 
 typedef struct {        /* station parameter type */
@@ -1352,7 +1347,7 @@ typedef struct {        /* receiver raw data control type */
     sbsmsg_t sbsmsg;    /* SBAS message */
 	char msgtype[256];  /* last message type */
 	l6msg_t l6msg[NSATQZS*2];  /* QZSS L6 message */
-    uint8_t subfrm[MAXSAT][460]; /* subframe buffer */
+    uint8_t subfrm[MAXSAT][600]; /* subframe buffer */
     double lockt[MAXSAT][NFREQ+NEXOBS]; /* lock time (s) */
     double icpp[MAXSAT],off[MAXSAT],icpc; /* carrier params for ss2 */
     double prCA[MAXSAT],dpCA[MAXSAT]; /* L1/CA pseudrange/doppler for javad */
@@ -1745,17 +1740,20 @@ EXPORT int decode_word (uint32_t word, uint8_t *data);
 EXPORT int decode_gps_lnav(const uint8_t *buff, eph_t *eph, alm_t *alm,
 						double *ion, double *utc, int sys);
 EXPORT int decode_gps_cnav(const uint8_t *buff, eph_t *eph, alm_t *alm,
-						double *ion, double *utc, int sys);
+						double *ion, double *utc, double *eop, int sys);
 EXPORT int decode_gps_cnav2(const uint8_t *buff, eph_t *eph, alm_t *alm,
-						double *ion, double *utc, int sys, int mode);
+						double *ion, double *utc, double *eop, int sys, int mode);
 EXPORT int test_glostr(const uint8_t *buff);
 EXPORT int decode_glostr(const uint8_t *buff, geph_t *geph, double *utc);
 EXPORT int decode_bds_d1(const uint8_t *buff, eph_t *eph, double *ion,
 						 double *utc);
 EXPORT int decode_bds_d2(const uint8_t *buff, eph_t *eph, double *utc);
-EXPORT int decode_bds_cnav1(const uint8_t *buff, eph_t *eph, double *ion, double *utc, int mode);
-EXPORT int decode_bds_cnav2(const uint8_t *buff, eph_t *eph, double *ion, double *utc);
-EXPORT int decode_bds_cnav3(const uint8_t *buff, eph_t *eph, double *ion, double *utc);
+EXPORT int decode_bds_cnav1(const uint8_t *buff, eph_t *eph, double *ion,
+	double *utc, double *eop, int mode);
+EXPORT int decode_bds_cnav2(const uint8_t *buff, eph_t *eph, double *ion,
+	double *utc, double *eop, int mode);
+EXPORT int decode_bds_cnav3(const uint8_t *buff, eph_t *eph, double *ion,
+	double *utc, double *eop, int mode);
 EXPORT int decode_gal_inav(const uint8_t *buff, eph_t *eph, double *ion,
 						   double *utc);
 EXPORT int decode_gal_fnav(const uint8_t *buff, eph_t *eph, double *ion,

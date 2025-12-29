@@ -894,7 +894,10 @@ static int decode_bds_d1_utc(const uint8_t *buff, double *utc)
     utc[1]=getbits2(buff,i+130,12,i+150,12)*P2_50; /* A1 */
     utc[6]=getbitu (buff,i+162, 8);          /* DN */
     utc[2]=getbitu2(buff,i+ 18, 8,i+ 30,12); /* SOW */
-    utc[3]=getbitu (buff,60,13);             /* WN */
+	utc[3]=getbitu (buff,60,13);             /* WN */
+
+    utc[5]+=utc[3]/256*256;
+
     return 1;
 }
 /* decode BDS D1 navigation data -----------------------------------------------
@@ -1118,8 +1121,8 @@ static int decode_bds_cnav_eph2(const uint8_t *buff, int i, eph_t *eph)
     eph->idot  =getbits(buff,i,15)*P2_44*SC2RAD; i+=15;
     eph->cis   =getbits(buff,i,16)*P2_30; i+=16;
     eph->cic   =getbits(buff,i,16)*P2_30; i+=16;
-    eph->crs   =getbits(buff,i,24)*P2_8; i+=24;
-    eph->crc   =getbits(buff,i,24)*P2_8; i+=24;
+	eph->crs   =getbits(buff,i,24)*P2_8;  i+=24;
+    eph->crc   =getbits(buff,i,24)*P2_8;  i+=24;
 	eph->cus   =getbits(buff,i,21)*P2_30; i+=21;
     eph->cuc   =getbits(buff,i,21)*P2_30; i+=21;
     return 0;
@@ -1190,15 +1193,15 @@ static int decode_bds_cnav_midi_alm(const uint8_t *buff, int i, alm_t *alm)
 	return 0;
 }
 /* decode BDS CNAV EOP */
-static int decode_bds_cnav_eop(const uint8_t *buff, int i, eop_t *eop)
+static int decode_bds_cnav_eop(const uint8_t *buff, int i, double *eop)
 {
-	eop->teops=getbitu(buff,i,16)*16;       i+=16;
-	eop->xp[0]=getbits(buff,i,21)*P2_20;    i+=21;
-	eop->xp[1]=getbits(buff,i,15)*P2_21;    i+=15;
-	eop->yp[0]=getbits(buff,i,21)*P2_20;    i+=21;
-	eop->yp[1]=getbits(buff,i,15)*P2_21;    i+=15;
-	eop->dut1[0]=getbits(buff,i,31)*P2_24;  i+=31;
-	eop->dut1[1]=getbits(buff,i,19)*P2_25;  i+=19;
+	eop[0]=getbitu(buff,i,16)*16;   i+=16;
+	eop[1]=getbits(buff,i,21)*P2_20;i+=21;
+	eop[2]=getbits(buff,i,15)*P2_21;i+=15;
+	eop[3]=getbits(buff,i,21)*P2_20;i+=21;
+	eop[4]=getbits(buff,i,15)*P2_21;i+=15;
+	eop[5]=getbits(buff,i,31)*P2_24;i+=31;
+	eop[6]=getbits(buff,i,19)*P2_25;i+=19;
 	return 0;
 }
 /* decode BDS CNAV UTC */
@@ -1213,6 +1216,7 @@ static int decode_bds_cnav_utc(const uint8_t *buff, int i, double *utc)
 	utc[5]=getbitu(buff,i,13);       i+=13; /* WN_LSF: leap second reference week number */
 	utc[6]=getbitu(buff,i,3);        i+=3;  /* DN: leap second reference day number */
 	utc[7]=getbits(buff,i,8);        i+=8;  /* dt_LSF: current or future leap second count */
+    utc[5]+=utc[3]/256*256;
 	return 0;
 }
 /* decode BDS CNAV BGTO */
@@ -1262,8 +1266,8 @@ static int decode_bds_cnav_sisa(const uint8_t *buff, int i, eph_t *eph)
 *                               SF2:600b,err:8b,SF3:264b,SF1:8b
 * return : status (1:ok,0:error)
 *-----------------------------------------------------------------------------*/
-extern int decode_bds_cnav1(const uint8_t *buff,eph_t *eph,double *ion,
-	double *utc, int mode)
+extern int decode_bds_cnav1(const uint8_t *buff, eph_t *eph, double *ion,
+	double *utc, double *eop, int mode)
 {
     double tow,toas;
     int i=0,soh,ofst1=(mode==1)?872:0,ofst2=(mode==1)?0:72,ofst3=(mode==1)?608:1272;
@@ -1331,6 +1335,15 @@ extern int decode_bds_cnav1(const uint8_t *buff,eph_t *eph,double *ion,
         }
     }
 
+	if (eop) {
+		if (page==3) {
+			i=ofst3+20;
+            return decode_bds_cnav_eop(buff,i,eop);
+        } else {
+            return 0;
+        }
+    }
+
     trace(3,"decode_bds_cnav1: tod=%2d page=%d\n",(int)tow,page);
 
 	if (page==2) {
@@ -1360,7 +1373,8 @@ extern int decode_bds_cnav1(const uint8_t *buff,eph_t *eph,double *ion,
 *          eph_t    *eph    IO  ephemeris structure
 * return : status (1:ok,0:error)
 *-----------------------------------------------------------------------------*/
-extern int decode_bds_cnav2(const uint8_t *buff,eph_t *eph,double *ion,double *utc)
+extern int decode_bds_cnav2(const uint8_t *buff, eph_t *eph, double *ion,
+	double *utc, double *eop, int mode)
 {
     int i=0,mt1,mt2,mt3,mt4,sat,week_a;
     uint8_t prn;
@@ -1368,18 +1382,18 @@ extern int decode_bds_cnav2(const uint8_t *buff,eph_t *eph,double *ion,double *u
 
     prn = getbitu(buff,0,6);
     sat = satno(SYS_CMP,prn);
-    eph->sat = sat;
 
-    mt1 = getbitu(buff,  6,6);
-    mt2 = getbitu(buff,36*8+6,6);
-    mt3 = getbitu(buff,36*2*8+6,6);
-    mt4 = getbitu(buff,36*3*8+6,6);
+	mt1 = getbitu(buff,  6,6);
+	mt2 = getbitu(buff,36*8+6,6);
+	mt3 = getbitu(buff,36*2*8+6,6);
+	mt4 = getbitu(buff,36*3*8+6,6);
 
-    eph->toes = getbitu(buff,12,18)*3.0;
-    trace(3,"decode_bds_cnav2: prn=%2d mt=%d\n",prn,mt1);
+	trace(3,"decode_bds_cnav2: prn=%2d mt=%d\n",prn,mt1);
 
-    if (eph) {
-        if (mt1!=10||mt2!=11||mt3!=30||mt4!=40) return 0;
+	if (eph) {
+		eph->sat = sat;
+		eph->toes = getbitu(buff,12,18)*3.0;
+		if (mt1!=10||mt2!=11||mt3!=30||mt4!=40) return 0;
         i=30;
         /* MT10 */
     	eph->week = getbitu(buff,i,13); i+=13;
@@ -1431,18 +1445,26 @@ extern int decode_bds_cnav2(const uint8_t *buff,eph_t *eph,double *ion,double *u
 #if 0
     	    decode_bds_cnav_midi_alm(buff,i,nav->alm); i+=156;
 #endif
-        }
+		}
+        return 2;
     }
 
-    if (ion && mt3==30) {
+	if (ion) {
+		if (mt3!=30) return 0;
         i=36*2*8+30+145; /* MT3x */
         decode_bds_cnav_iono(buff,i,ion);
     }
-    if (utc && mt3==34) {
+	if (utc) {
+		if (mt3!=34) return 0;
         i=36*2*8+133; /* MT3x */
         eph->iodc = getbitu(buff,i,10); i+=10;
         decode_bds_cnav_utc(buff,i,utc); i+=97;
-    }
+	}
+	if (eop) {
+		if (mt3!=32) return 0;
+		i=36*2*8+30+121; /* MT3x */
+		decode_bds_cnav_eop(buff,i,eop);
+	}
     return 2;
 }
 /* decode BeiDou CNAV3 messages --------------------------------------------------
@@ -1451,25 +1473,34 @@ extern int decode_bds_cnav2(const uint8_t *buff,eph_t *eph,double *ion,double *u
 *                            MT10 0..511b
 *                            MT30 512..1023b
 *          eph_t    *eph    IO  ephemeris structure
+*          int       mode   I 0: 984bits, 1: Javad 486bits
 * return : status (1:ok,0:error)
 *-----------------------------------------------------------------------------*/
 extern int decode_bds_cnav3(const uint8_t *buff, eph_t *eph, double *ion,
-	double *utc)
+	double *utc, double *eop, int mode)
 {
-	uint8_t mt1,mt2;
-	int i=6,tow,prn=0,sys;
+	int i=6,mt1,mt2,tow1,tow2,prn=0,sys,ofst=(mode==0)?12:0;
 
-    sys=satsys(eph->sat,&prn);
+	mt1 = getbitu(buff,ofst,6); /* MT10 */
+	mt2 = getbitu(buff,512+ofst,6); /* MT30 */
 
-	mt1 = getbitu(buff,  0,6);
-	mt2 = getbitu(buff,512,6);
+	tow1 = getbitu(buff,6+ofst,20);
+	tow2 = getbitu(buff,512+6+ofst,20);
 
-	tow = getbitu(buff,512+6,20);
-    trace(3,"decode_bds_cnav3: prn=%3d mt2=%2d tow=%6d\n",prn,mt2,tow);
+	if (tow2!=tow1+1) {
+		return 0;
+	}
 
-    if (eph) {
-        if (mt1!=10||mt2!=30) return 0;
-        i=30; /* MT10 */
+	if (eph) {
+		sys=satsys(eph->sat,&prn);
+		trace(3,"decode_bds_cnav3: prn=%3d mt2=%2d tow=%6d\n",prn,mt2,tow2);
+
+		if (mt1!=10||mt2!=30) return 0;
+
+		i=ofst+512+26; /* MT30 clock correction, iono */
+		eph->week=getbitu(buff,i,13);
+
+		i=ofst+30; /* MT10 */
 		/* ephemeris I 203bits */
 		decode_bds_cnav_eph1(buff,i,eph); i+=203;
 		/* ephemeris II 222bits */
@@ -1478,41 +1509,45 @@ extern int decode_bds_cnav3(const uint8_t *buff, eph_t *eph, double *ion,
 		eph->integ=getbitu(buff,i,3); i+=3;      /* DIF/SIF/AIF(B2bI) */
 		eph->urai[4]=getbits(buff,i,4); i+=4;    /* SISMAI */
 
-		i=512+26; /* MT30 clock correction, iono */
-		eph->week=getbitu(buff,i,13); i+=13+4;
+		i=ofst+512+43; /* MT30 clock correction, iono */
 		/* clock 69bits */
 		decode_bds_cnav_clk(buff,i,eph); i+=69;
         eph->tgd[4]=getbits(buff,i,12)*P2_34;       /* TGD_B2bI */
-	    eph->ttr=bdt2gpst(bdt2time(eph->week,tow)); /* bdt -> gpst */
+	    eph->ttr=bdt2gpst(bdt2time(eph->week,tow2)); /* bdt -> gpst */
 
-	    i=512+124+74+97+138;
+        /* SISA 22bits */
+	    i=ofst+512+124+74+97+138;
 	    decode_bds_cnav_sisa(buff,i,eph); i+=22;
 	    eph->urai[0]=getbits(buff,i,5); /* SISAI-OE */ i+=5;
 		eph->svh=getbitu(buff,i,2); i+=2;
 
         eph->navtype=NAV_CMP_CNV3;
     }
-    if (ion && mt2==30) {
-        i=512+124;
+	if (ion) {
+		if (mt2!=30) return 0;
+        i=ofst+512+124;
 		/* iono 74bits */
 		decode_bds_cnav_iono(buff,i,ion);
     }
-    if (utc && mt2==30) {
-		i=512+124+74;
+	if (utc) {
+		if (mt2!=30) return 0;
+		i=ofst+512+124+74;
 		/* bdt-utc 97bits */
 		decode_bds_cnav_utc(buff,i,utc);
     }
+
+	if (eop) { /* EOP */
+		if (mt2!=30) return 0;
+		i=ofst+512+124+74+97;
+		decode_bds_cnav_eop(buff,i,eop);
+	}
 #if 0
-    if (mt2==30) { /* EOP */
-        i=512+124+74+97;
-        decode_bds_cnav_eop(buff,i,nav); i+=138;
-    }
-    if (mt2==40) { /* bgto */
-        i=512+26;
+	if (mt2==40) { /* bgto */
+		i=ofst+512+26;
         decode_bds_cnav_bgto(buff,i,nav);
     }
     if (mt2==40) { /* almanac */
-        i=512+94;
+        i=ofst+512+94;
         decode_bds_cnav_midi_alm(buff,i,nav->alm); i+=156;
         week_a=getbitu(buff,i,13); i+=13;
         toas=getbitu(buff,i,8)*4096; i+=8;
@@ -2140,6 +2175,27 @@ int decode_gps_cnav_ion(const uint8_t *buff, double *ion)
 	ion[7] = getbits(buff,i, 8)/P2_16; i+= 8;
     return 1;
 }
+/* decode GPS/QZS EOP parameters ----------------------------------------*/
+static int decode_gps_cnav_eop(const uint8_t *buff, double *eop)
+{
+	int i=560+127,id3;
+
+	trace(4,"decode_gps_cnav_eop:\n");
+
+    id3 =getbitu(buff,574, 6);
+    if (!eop||(id3!=32)) {
+        return 0;
+    }
+
+	eop[0]=getbitu(buff,i,16)*16; 	 i+=16; /* t_eop */
+	eop[1]=getbits(buff,i,21)*P2_20; i+=21; /* PM_x */
+	eop[2]=getbits(buff,i,15)*P2_21; i+=15; /* PM_xd */
+	eop[3]=getbits(buff,i,21)*P2_20; i+=21; /* PM_y */
+	eop[4]=getbits(buff,i,15)*P2_21; i+=15; /* PM_yd */
+	eop[5]=getbits(buff,i,31)*P2_24; i+=31; /* dUT1 */
+	eop[6]=getbits(buff,i,19)*P2_25; i+=19; /* dUT1_dt */
+	return 1;
+}
 /* decode GPS/QZS CNAV midi-almanac */
 int decode_gps_cnav_alm(const uint8_t *buff, alm_t *alm, int sys)
 {
@@ -2177,13 +2233,14 @@ int decode_gps_cnav_alm(const uint8_t *buff, alm_t *alm, int sys)
 *          see ref [1]
 *-----------------------------------------------------------------------------*/
 extern int decode_gps_cnav(const uint8_t *buff, eph_t *eph, alm_t *alm,
-                        double *ion, double *utc, int sys)
+                        double *ion, double *utc, double *eop, int sys)
 {
     if (eph&&!decode_gps_cnav_eph(buff,eph,sys)) return 0;
     if (alm&&!decode_gps_cnav_alm(buff,alm,sys)) return 0;
     if (ion&&!decode_gps_cnav_ion(buff,ion)) return 0;
     if (utc&&!decode_gps_cnav_utc(buff,utc)) return 0;
-    return 1;
+    if (eop&&!decode_gps_cnav_eop(buff,eop)) return 0;
+	return 1;
 }
 /* decode GPS/QZS CNAV2 ephemeris */
 static int decode_gps_cnav2_eph(const uint8_t *buff, eph_t *eph, int sys, int mode)
@@ -2341,6 +2398,27 @@ static int decode_gps_cnav2_utc(const uint8_t *buff, double *utc, int mode)
 	utc[7] = getbits(buff,i, 8); i+= 8; /* current or future LS */
     return 1;
 }
+/* decode GPS/QZS CNAV2 EOP parameters -- ------------------------------------*/
+static int decode_gps_cnav2_eop(const uint8_t *buff, double *eop, int mode)
+{
+	int i=(mode==1)?609:1252,prn,page,leaps;
+
+    prn =getbitu(buff,i, 8); i+= 8;
+    page = getbitu(buff,i, 6); i+= 6+68;
+
+    if (page!=2) {
+        return 0;
+    }
+
+	eop[0]=getbitu(buff,i,16)*16; 	 i+=16; /* t_eop */
+	eop[1]=getbits(buff,i,21)*P2_20; i+=21; /* PM_x */
+	eop[2]=getbits(buff,i,15)*P2_21; i+=15; /* PM_xd */
+	eop[3]=getbits(buff,i,21)*P2_20; i+=21; /* PM_y */
+	eop[4]=getbits(buff,i,15)*P2_21; i+=15; /* PM_yd */
+	eop[5]=getbits(buff,i,31)*P2_24; i+=31; /* dUT1 */
+	eop[6]=getbits(buff,i,19)*P2_25; i+=19; /* dUT1_dt */
+	return 1;
+}
 /* decode GPS/QZSS CNAV2 navigation data ---------------------------------------------
 * decode GPS/QZSS CNAV2 navigation data (ref [1],[4])
 * args   : uint8_t *buff    I   GPS/QZSS navigation data (w/o parity bits)
@@ -2362,13 +2440,13 @@ static int decode_gps_cnav2_utc(const uint8_t *buff, double *utc, int mode)
 *          see ref [1]
 *-----------------------------------------------------------------------------*/
 extern int decode_gps_cnav2(const uint8_t *buff, eph_t *eph, alm_t *alm,
-                        double *ion, double *utc, int sys, int mode)
+                        double *ion, double *utc, double *eop, int sys, int mode)
 {
 	if (eph&&!decode_gps_cnav2_eph(buff,eph,sys,mode)) return 0;
 	if (alm&&!decode_gps_cnav2_alm(buff,alm,sys,mode)) return 0;
 	if (ion&&!decode_gps_cnav2_ion(buff,ion,mode)) return 0;
     if (utc&&!decode_gps_cnav2_utc(buff,utc,mode)) return 0;
-
+    if (eop&&!decode_gps_cnav2_eop(buff,eop,mode)) return 0;
     return 1;
 }
 /* initialize receiver raw data control ----------------------------------------
@@ -2661,7 +2739,7 @@ extern void set_eop_param(raw_t *raw, int sat, navtype_t navtype, double *eop)
 		case SYS_GPS: tsys=TSYS_GPS;te=(navtype==NAV_GPS_LNAV)?0:1;break;
 		case SYS_GLO: tsys=TSYS_GLO;te=3;break;
 		case SYS_QZS: tsys=TSYS_QZS;te=(navtype==NAV_QZS_LNAV)?0:1;break;
-		case SYS_CMP: tsys=TSYS_CMP;te=1;
+		case SYS_CMP: tsys=TSYS_CMP;te=1;break;
 		case SYS_IRN: tsys=TSYS_IRN;te=(navtype==NAV_IRN_LNAV)?0:2;break;
 		default: return;
 	}
