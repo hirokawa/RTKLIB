@@ -194,24 +194,24 @@ static int ubx_sig(int sys, int sigid)
     }
     else if (sys==SYS_QZS) {
         if (sigid==0) return CODE_L1C; /* L1C/A */
-        if (sigid==1) return CODE_L1Z; /* L1S */
-        if (sigid==4) return CODE_L2S; /* L2CM */
-		if (sigid==5) return CODE_L2L; /* L2CL */
-		if (sigid==8) return CODE_L5I; /* L5I */
-		if (sigid==9) return CODE_L5Q; /* L5Q */
-		if (sigid==12) return CODE_L1E; /* L1C/B */
+		if (sigid==1) return CODE_L1Z; /* L1S   */
+		if (sigid==4) return CODE_L2S; /* L2CM  */
+		if (sigid==5) return CODE_L2L; /* L2CL  */
+		if (sigid==8) return CODE_L5I; /* L5I   */
+		if (sigid==9) return CODE_L5Q; /* L5Q   */
+		if (sigid==12) return CODE_L1E;/* L1C/B */
     }
     else if (sys==SYS_CMP) {
         if (sigid==0) return CODE_L2I; /* B1I D1 */
         if (sigid==1) return CODE_L2I; /* B1I D2 */
         if (sigid==2) return CODE_L7I; /* B2I D1 */
         if (sigid==3) return CODE_L7I; /* B2I D2 */
-		if (sigid==4) return CODE_L3I; /* B3I D1 */
-		if (sigid==10) return CODE_L3I; /* B3I D2 */
-		if (sigid==5) return CODE_L1P; /* B1Cp */
-		if (sigid==6) return CODE_L1D; /* B1Cd */
-		if (sigid==7) return CODE_L5P; /* B2aP */
-		if (sigid==8) return CODE_L5D; /* B2aD */
+		if (sigid==4) return CODE_L6I; /* B3I D1 */
+		if (sigid==10) return CODE_L6I;/* B3I D2 */
+		if (sigid==5) return CODE_L1P; /* B1Cp   */
+		if (sigid==6) return CODE_L1D; /* B1Cd   */
+		if (sigid==7) return CODE_L5P; /* B2aP   */
+		if (sigid==8) return CODE_L5D; /* B2aD   */
 	}
     else if (sys==SYS_SBS) {
         if (sigid==0) return CODE_L1C; /* L1C/A */
@@ -756,41 +756,73 @@ static int decode_ionutc(raw_t *raw, int sat)
 	return 9;
 }
 /* decode GPS/QZSS navigation data -------------------------------------------*/
-static int decode_nav(raw_t *raw, int sat, int off)
+static int decode_nav(raw_t *raw, int sat, int off, int sigid)
 {
-    uint8_t *p=raw->buff+6+off,buff[30];
-    int i,id,ret;
+    uint8_t *p=raw->buff+6+off,buff[40];
+	int i,id,ret,mid,sys=satsys(sat,NULL);
+	eph_t eph={0};
     
     if (raw->len<48+off) {
         trace(2,"ubx rxmsfrbx nav length error: sat=%d len=%d\n",sat,raw->len);
-        return -1;
-    }
-    if ((U4(p)>>24)==PREAMB_CNAV) {
-        trace(3,"ubx rxmsfrbx nav unsupported sat=%d len=%d\n",sat,raw->len);
-        return 0;
-    }
-    for (i=0;i<10;i++,p+=4) { /* 24 x 10 bits w/o parity */
-        setbitu(buff,24*i,24,U4(p)>>6);
-    }
-    id=getbitu(buff,43,3);
-    if (id<1||id>5) {
-        trace(2,"ubx rxmsfrbx nav subframe id error: sat=%d id=%d\n",sat,id);
-        return -1;
-    }
-    memcpy(raw->subfrm[sat-1]+(id-1)*30,buff,30);
-    
-    if (id==3) {
-        return decode_eph(raw,sat);
-    }
-    if (id==4||id==5) {
-        ret=decode_ionutc(raw,sat);
-        memset(raw->subfrm[sat-1]+(id-1)*30,0,30);
-        return ret;
-    }
-    return 0;
+		return -1;
+	}
+
+	if (sigid==CODE_L1C) { /* LNAV */
+		for (i=0;i<10;i++,p+=4) { /* 24 x 10 bits w/o parity */
+			setbitu(buff,24*i,24,U4(p)>>6);
+		}
+		id=getbitu(buff,43,3);
+		if (id<1||id>5) {
+			trace(2,"ubx rxmsfrbx nav subframe id error: sat=%d id=%d\n",sat,id);
+			return -1;
+		}
+		memcpy(raw->subfrm[sat-1]+(id-1)*30,buff,30);
+
+		if (id==3) {
+			return decode_eph(raw,sat);
+		}
+		if (id==4||id==5) {
+			ret=decode_ionutc(raw,sat);
+			memset(raw->subfrm[sat-1]+(id-1)*30,0,30);
+			return ret;
+		}
+	} else if (sigid==CODE_L5I||sigid==CODE_L2S) { /* L5/L2C CNAV */
+		for (i=0;i<10;i++,p+=4) { /* 24 x 32 bits */
+			setbitu(buff,32*i,32,U4(p));
+		}
+		mid =getbitu(buff,14,6); i+=6;
+		switch (mid) {
+			case 10: id=1;break;
+			case 11: id=2;break;
+			case 30:
+			case 31:
+			case 32:
+			case 33:
+			case 35:
+			case 37:
+			case 61: id=3;break;
+			default: return 0;
+		}
+		memcpy(raw->subfrm[sat-1]+(id-1)*35+SF_OFST_GPS_CNAV,buff,35);
+		if(!decode_gps_cnav(raw->subfrm[sat-1]+SF_OFST_GPS_CNAV,&eph,
+			NULL,NULL,NULL,NULL,sys))
+			return 0;
+
+		if (!strstr(raw->opt,"-EPHALL")) {
+			if (timediff(eph.toe,raw->nav.eph[sat-1+MAXSAT].toe)==0.0) return 0;
+		}
+
+		eph.sat=sat;
+		raw->nav.eph[sat-1+MAXSAT]=eph;
+		raw->ephsat=sat;
+		raw->ephset=1;
+		return 2;
+	}
+
+	return 0;
 }
 /* decode Galileo I/NAV navigation data --------------------------------------*/
-static int decode_enav(raw_t *raw, int sat, int off)
+static int decode_enav(raw_t *raw, int sat, int off, int sigid)
 {
     eph_t eph={0};
     double ion[4]={0},utc[8]={0};
@@ -801,131 +833,200 @@ static int decode_enav(raw_t *raw, int sat, int off)
         trace(2,"ubx rxmsfrbx enav length error: sat=%d len=%d\n",sat,raw->len);
         return -1;
     }
-    if (raw->len<40+off) return 0; /* E5b I/NAV */
-    
-    for (i=0;i<8;i++,p+=4) {
-        setbitu(buff,32*i,32,U4(p));
-    }
-    part1=getbitu(buff,  0,1);
-    page1=getbitu(buff,  1,1);
-    part2=getbitu(buff,128,1);
-    page2=getbitu(buff,129,1);
-    
-    if (part1!=0||part2!=1) {
-        trace(3,"ubx rxmsfrbx enav page even/odd error: sat=%d\n",sat);
-        return -1;
-    }
-    if (page1==1||page2==1) return 0; /* alert page */
-    
-    /* test crc (4(pad) + 114 + 82 bits) */
-    for (i=0,j=  4;i<15;i++,j+=8) setbitu(crc_buff,j,8,getbitu(buff,i*8    ,8));
-    for (i=0,j=118;i<11;i++,j+=8) setbitu(crc_buff,j,8,getbitu(buff,i*8+128,8));
-    if (rtk_crc24q(crc_buff,25)!=getbitu(buff,128+82,24)) {
-        trace(2,"ubx rxmsfrbx enav crc error: sat=%d\n",sat);
-        return -1;
-    }
-    type=getbitu(buff,2,6); /* word type */
-    
-    if (type==0||type>6) return 0;
-    
-    /* save 128 (112:even+16:odd) bits word */
-    for (i=0,j=2;i<14;i++,j+=8) {
-		raw->subfrm[sat-1][(type-1)*16+i]=getbitu(buff,j,8);
-    }
-    for (i=14,j=130;i<16;i++,j+=8) {
-        raw->subfrm[sat-1][(type-1)*16+i]=getbitu(buff,j,8);
-    }
-    if (type!=5) return 0;
-	if (!decode_gal_inav(raw->subfrm[sat-1],&eph,NULL,NULL)) return 0;
 
-	if (eph.sat!=sat) {
-		trace(2,"ubx rxmsfrbx enav satellite error: sat=%d %d\n",sat,eph.sat);
-		return -1;
+	if (sigid==CODE_L1B||sigid==CODE_L7I) { /* E1b/E5b I/NAV */
+		if (strstr(raw->opt,"-GALFNAV")) {
+			return 0;
+		}
+		for (i=0;i<8;i++,p+=4) {
+			setbitu(buff,32*i,32,U4(p));
+		}
+		part1=getbitu(buff,  0,1);
+		page1=getbitu(buff,  1,1);
+		part2=getbitu(buff,128,1);
+		page2=getbitu(buff,129,1);
+    
+		if (part1!=0||part2!=1) {
+			trace(3,"ubx rxmsfrbx enav page even/odd error: sat=%d\n",sat);
+			return -1;
+		}
+		if (page1==1||page2==1) return 0; /* alert page */
+    
+		/* test crc (4(pad) + 114 + 82 bits) */
+		for (i=0,j=  4;i<15;i++,j+=8) setbitu(crc_buff,j,8,getbitu(buff,i*8    ,8));
+		for (i=0,j=118;i<11;i++,j+=8) setbitu(crc_buff,j,8,getbitu(buff,i*8+128,8));
+		if (rtk_crc24q(crc_buff,25)!=getbitu(buff,128+82,24)) {
+			trace(2,"ubx rxmsfrbx enav crc error: sat=%d\n",sat);
+			return -1;
+		}
+		type=getbitu(buff,2,6); /* word type */
+    
+		if (type==0||type>6) return 0;
+    
+		/* save 128 (112:even+16:odd) bits word */
+		for (i=0,j=2;i<14;i++,j+=8) {
+			raw->subfrm[sat-1][(type-1)*16+i]=getbitu(buff,j,8);
+		}
+		for (i=14,j=130;i<16;i++,j+=8) {
+			raw->subfrm[sat-1][(type-1)*16+i]=getbitu(buff,j,8);
+		}
+		if (type!=5) return 0;
+		if (!decode_gal_inav(raw->subfrm[sat-1],&eph,NULL,NULL)) return 0;
+
+		if (eph.sat!=sat) {
+			trace(2,"ubx rxmsfrbx enav satellite error: sat=%d %d\n",sat,eph.sat);
+			return -1;
+		}
+		eph.code|=(1<<0); /* data source: E1 */
+
+		decode_gal_inav(raw->subfrm[sat-1],NULL,ion,utc);
+		adj_utcweek(raw->time,utc,8);
+		set_ion_param(raw,sat,NAV_GAL_INAV,ion);
+		set_utc_param(raw,sat,NAV_GAL_INAV,utc);
+
+		if (!strstr(raw->opt,"-EPHALL")) {
+			if (eph.iode==raw->nav.eph[sat-1].iode&&
+				timediff(eph.toe,raw->nav.eph[sat-1].toe)==0.0&&
+				timediff(eph.toc,raw->nav.eph[sat-1].toc)==0.0) return 0;
+		}
+		raw->nav.eph[sat-1]=eph;
+		raw->ephsat=sat;
+		raw->ephset=0; /* 0:I/NAV */
+		return 2;
+	} else if (sigid==CODE_L5I) {  /* E5a F/NAV */
+		if (strstr(raw->opt,"-GALINAV")) {
+			return 0;
+		}
+		type = getbitu(p,0,6);
+		memcpy(raw->subfrm[sat-1]+SF_OFST_GAL_FNAV+31*(type-1),p,31);
+		if(!decode_gal_fnav(raw->subfrm[sat-1]+SF_OFST_GAL_FNAV,
+			&eph,NULL,NULL)) return 0;
+
+		if (!strstr(raw->opt,"-EPHALL")) {
+			if (eph.code==raw->nav.eph[sat-1+MAXSAT].code&&
+				eph.iode==raw->nav.eph[sat-1+MAXSAT].iode&&
+				timediff(eph.toe,raw->nav.eph[sat-1+MAXSAT].toe)==0.0&&
+				timediff(eph.toc,raw->nav.eph[sat-1+MAXSAT].toc)==0.0) return 0;
+		}
+		raw->nav.eph[sat-1+MAXSAT]=eph;
+		raw->ephsat=sat;
+		raw->ephset=1; /* 1:F/NAV */
+	} else if (sigid==CODE_L6B) {  /* E6 C/NAV */
+
 	}
-	eph.code|=(1<<0); /* data source: E1 */
-
-	decode_gal_inav(raw->subfrm[sat-1],NULL,ion,utc);
-	adj_utcweek(raw->time,utc,8);
-	set_ion_param(raw,sat,NAV_GAL_INAV,ion);
-	set_utc_param(raw,sat,NAV_GAL_INAV,utc);
-    //matcpy(raw->nav.utc_gal,utc,8,1);
-    
-    if (!strstr(raw->opt,"-EPHALL")) {
-        if (eph.iode==raw->nav.eph[sat-1].iode&&
-            timediff(eph.toe,raw->nav.eph[sat-1].toe)==0.0&&
-            timediff(eph.toc,raw->nav.eph[sat-1].toc)==0.0) return 0;
-    }
-    raw->nav.eph[sat-1]=eph;
-    raw->ephsat=sat;
-    raw->ephset=0; /* 0:I/NAV */
-    return 2;
+	return 0;
 }
 /* decode BDS navigation data ------------------------------------------------*/
-static int decode_cnav(raw_t *raw, int sat, int off)
+static int decode_cnav(raw_t *raw, int sat, int off, int sigid)
 {
-    eph_t eph={0};
-    double ion[8],utc[8];
-    uint8_t *p=raw->buff+6+off,buff[38]={0};
-    int i,id,pgn,prn;
-    
-    if (raw->len<48+off) {
-        trace(2,"ubx rxmsfrbx cnav length error: sat=%d len=%d\n",sat,raw->len);
-        return -1;
-    }
-    for (i=0;i<10;i++,p+=4) {
-        setbitu(buff,30*i,30,U4(p));
-    }
-    id=getbitu(buff,15,3); /* subframe ID */
-    if (id<1||5<id) {
-        trace(2,"ubx rxmsfrbx cnav subframe id error: sat=%2d\n",sat);
-        return -1;
-    }
-    satsys(sat,&prn);
-    
-    if (prn>=6&&prn<=58) { /* IGSO/MEO */
-        memcpy(raw->subfrm[sat-1]+(id-1)*38,buff,38);
-        
-        if (id==3) {
-            if (!decode_bds_d1(raw->subfrm[sat-1],&eph,NULL,NULL)) return 0;
-        }
-        else if (id==5) {
-			if (!decode_bds_d1(raw->subfrm[sat-1],NULL,ion,utc)) return 0;
-			set_ion_param(raw,sat,NAV_CMP_D1,ion);
-			set_utc_param(raw,sat,NAV_CMP_D1,utc);
-            return 9;
-        }
-        else return 0;
-    }
-    else { /* GEO */
-        pgn=getbitu(buff,42,4); /* page numuber */
-        
-        if (id==1&&pgn>=1&&pgn<=10) {
-            memcpy(raw->subfrm[sat-1]+(pgn-1)*38,buff,38);
-            if (pgn!=10) return 0;
-            if (!decode_bds_d2(raw->subfrm[sat-1],&eph,NULL)) return 0;
-        }
-        else if (id==5&&pgn==102) {
-            memcpy(raw->subfrm[sat-1]+10*38,buff,38);
-            if (!decode_bds_d2(raw->subfrm[sat-1],NULL,utc)) return 0;
-			set_utc_param(raw,sat,NAV_CMP_D2,utc);
-            return 9;
-        }
-        else return 0;
-    }
-    if (!strstr(raw->opt,"-EPHALL")) {
-        if (timediff(eph.toe,raw->nav.eph[sat-1].toe)==0.0) return 0;
-    }
-    eph.sat=sat;
-    raw->nav.eph[sat-1]=eph;
-    raw->ephsat=sat;
-    raw->ephset=0;
-    return 2;
+	eph_t eph={0};
+	double ion[8],utc[8];
+	uint8_t *p=raw->buff+6+off,buff[80]={0};
+	int i,id,pgn,mid,prn,len=(raw->len-(4+off))/4;
+
+	if (raw->len<44+off) {
+		trace(2,"ubx rxmsfrbx cnav length error: sat=%d len=%d\n",sat,raw->len);
+		return -1;
+	}
+
+	if (sigid==CODE_L2I || sigid==CODE_L6I) { /* B1I/B3I D1/D2 */
+		for (i=0;i<len;i++,p+=4) {
+			setbitu(buff,30*i,30,U4(p));
+		}
+		id=getbitu(buff,15,3); /* subframe ID */
+		if (id<1||5<id) {
+			trace(2,"ubx rxmsfrbx cnav subframe id error: sat=%2d\n",sat);
+			return -1;
+		}
+		satsys(sat,&prn);
+
+		if (prn>=6&&prn<=58) { /* IGSO/MEO */
+			memcpy(raw->subfrm[sat-1]+(id-1)*38,buff,38);
+
+			if (id==3) {
+				if (!decode_bds_d1(raw->subfrm[sat-1],&eph,NULL,NULL)) return 0;
+			}
+			else if (id==5) {
+				if (!decode_bds_d1(raw->subfrm[sat-1],NULL,ion,utc)) return 0;
+				set_ion_param(raw,sat,NAV_CMP_D1,ion);
+				set_utc_param(raw,sat,NAV_CMP_D1,utc);
+				return 9;
+			}
+			else return 0;
+		}
+		else { /* GEO */
+			pgn=getbitu(buff,42,4); /* page numuber */
+
+			if (id==1&&pgn>=1&&pgn<=10) {
+				memcpy(raw->subfrm[sat-1]+(pgn-1)*38,buff,38);
+				if (pgn!=10) return 0;
+				if (!decode_bds_d2(raw->subfrm[sat-1],&eph,NULL)) return 0;
+			}
+			else if (id==5&&pgn==102) {
+				memcpy(raw->subfrm[sat-1]+10*38,buff,38);
+				if (!decode_bds_d2(raw->subfrm[sat-1],NULL,utc)) return 0;
+				set_utc_param(raw,sat,NAV_CMP_D2,utc);
+				return 9;
+			}
+			else return 0;
+		}
+		if (!strstr(raw->opt,"-EPHALL")) {
+			if (timediff(eph.toe,raw->nav.eph[sat-1].toe)==0.0) return 0;
+		}
+		eph.sat=sat;
+		raw->nav.eph[sat-1]=eph;
+		raw->ephsat=sat;
+		raw->ephset=0;
+		return 2;
+	} else if (sigid==CODE_L1D) { /* B1Cd CNAV1 (note:640bits is too short) */
+		for (i=0;i<len;i++,p+=4) {
+			setbitu(buff,32*i,32,U4(p));
+		}
+		eph.sat=sat;
+		if(!decode_bds_cnav1(buff,&eph,NULL,NULL,NULL,0)) return 0;
+		if (!strstr(raw->opt,"-EPHALL")) {
+			if (eph.iode==raw->nav.eph[sat-1+MAXSAT].iode&&
+				timediff(eph.toe,raw->nav.eph[sat-1+MAXSAT].toe)==0.0&&
+				timediff(eph.toc,raw->nav.eph[sat-1+MAXSAT].toc)==0.0) return 0;
+		}
+		raw->nav.eph[sat-1+MAXSAT]=eph;
+		raw->ephsat=sat;
+		raw->ephset=1;
+		return 2;
+	} else if (sigid==CODE_L5D) { /* B2aD CNAV2 */
+		for (i=0;i<len;i++,p+=4) {
+			setbitu(buff,32*i,32,U4(p));
+		}
+		mid = getbitu(buff,6,6);
+		if (mid==10||mid==11) {
+			id=mid-10;
+		} else if (mid>=30&&mid<40) {
+			id=2;
+		} else if (mid==40) {
+			id=3;
+		} else {
+            return 0;
+		}
+		memcpy(raw->subfrm[sat-1]+id*36+SF_OFST_BDS_CNAV2,buff,36);
+		if (!decode_bds_cnav2(raw->subfrm[sat-1]+SF_OFST_BDS_CNAV2,&eph,
+			NULL,NULL,NULL,0)) return 0;
+		if (!strstr(raw->opt,"-EPHALL")) {
+			if (eph.iode==raw->nav.eph[sat-1+MAXSAT*2].iode&&
+				timediff(eph.toe,raw->nav.eph[sat-1+MAXSAT*2].toe)==0.0&&
+				timediff(eph.toc,raw->nav.eph[sat-1+MAXSAT*2].toc)==0.0) return 0;
+		}
+		raw->nav.eph[sat-1+MAXSAT*2]=eph;
+		raw->ephsat=sat;
+		raw->ephset=2;
+		return 2;
+	}
+	return 0;
 }
 /* decode GLONASS navigation data --------------------------------------------*/
-static int decode_gnav(raw_t *raw, int sat, int off, int frq)
+static int decode_gnav(raw_t *raw, int sat, int off, int frq, int sigid)
 {
     geph_t geph={0};
-    double utc_glo[8]={0};
+	double utc[8]={0};
     int i,j,k,m,prn;
     uint8_t *p=raw->buff+6+off,buff[64],*fid;
     
@@ -973,14 +1074,14 @@ static int decode_gnav(raw_t *raw, int sat, int off, int frq)
         return 2;
     }
     else if (m==5) {
-        if (!decode_glostr(raw->subfrm[sat-1],NULL,utc_glo)) return 0;
-		set_utc_param(raw,sat,NAV_GLO_L1OC,utc_glo);
+		if (!decode_glostr(raw->subfrm[sat-1],NULL,utc)) return 0;
+		set_utc_param(raw,sat,NAV_GLO_FDMA,utc);
         return 9;
     }
     return 0;
 }
 /* decode SBAS navigation data -----------------------------------------------*/
-static int decode_snav(raw_t *raw, int prn, int off)
+static int decode_snav(raw_t *raw, int prn, int off, int sigid)
 {
     int i,tow,week;
     uint8_t *p=raw->buff+6+off,buff[32];
@@ -1004,11 +1105,11 @@ static int decode_snav(raw_t *raw, int prn, int off)
 static int decode_rxmsfrbx(raw_t *raw)
 {
     uint8_t *p=raw->buff+6;
-    int prn,sat,sys;
+    int prn,sat,sys,sigid=U1(p+2);
     
     if (raw->outtype) {
-        sprintf(raw->msgtype,"UBX RXM-SFRBX (%4d): sys=%d prn=%3d",raw->len,
-                U1(p),U1(p+1));
+        sprintf(raw->msgtype,"UBX RXM-SFRBX (%4d): sys=%d prn=%3d sig=%d",raw->len,
+				U1(p),U1(p+1),U1(p+2));
     }
     if (!(sys=ubx_sys(U1(p)))) {
         trace(2,"ubx rxmsfrbx sys id error: sys=%d\n",U1(p));
@@ -1025,22 +1126,26 @@ static int decode_rxmsfrbx(raw_t *raw)
     if (sys==SYS_QZS&&raw->len==52) { /* QZSS L1S */
         sys=SYS_SBS;
         prn-=10;
-    }
+	}
+	if (sys==SYS_CMP) {
+        sigid=U1(p+2);
+	}
+    sigid=ubx_sig(sys,U1(p+2));
     switch (sys) {
-        case SYS_GPS: return decode_nav (raw,sat,8);
-        case SYS_QZS: return decode_nav (raw,sat,8);
-        case SYS_GAL: return decode_enav(raw,sat,8);
-        case SYS_CMP: return decode_cnav(raw,sat,8);
-        case SYS_GLO: return decode_gnav(raw,sat,8,U1(p+3));
-        case SYS_SBS: return decode_snav(raw,prn,8);
-    }
-    return 0;
+		case SYS_GPS: return decode_nav (raw,sat,8,sigid);
+		case SYS_QZS: return decode_nav (raw,sat,8,sigid);
+		case SYS_GAL: return decode_enav(raw,sat,8,sigid);
+		case SYS_CMP: return decode_cnav(raw,sat,8,sigid);
+		case SYS_GLO: return decode_gnav(raw,sat,8,U1(p+3),sigid);
+		case SYS_SBS: return decode_snav(raw,prn,8,sigid);
+	}
+	return 0;
 }
 /* decode UBX-TRK-SFRBX: subframe buffer extension (unoffitial) --------------*/
 static int decode_trksfrbx(raw_t *raw)
 {
     uint8_t *p=raw->buff+6;
-    int prn,sat,sys;
+    int prn,sat,sys,sigid=-1;
     
     if (raw->outtype) {
         sprintf(raw->msgtype,"UBX TRK-SFRBX (%4d): sys=%d prn=%3d",raw->len,
@@ -1056,12 +1161,12 @@ static int decode_trksfrbx(raw_t *raw)
         return -1;
     }
     switch (sys) {
-        case SYS_GPS: return decode_nav (raw,sat,13);
-        case SYS_QZS: return decode_nav (raw,sat,13);
-        case SYS_GAL: return decode_enav(raw,sat,13);
-        case SYS_CMP: return decode_cnav(raw,sat,13);
-        case SYS_GLO: return decode_gnav(raw,sat,13,U1(p+4));
-        case SYS_SBS: return decode_snav(raw,sat,13);
+        case SYS_GPS: return decode_nav (raw,sat,13,sigid);
+		case SYS_QZS: return decode_nav (raw,sat,13,sigid);
+		case SYS_GAL: return decode_enav(raw,sat,13,sigid);
+		case SYS_CMP: return decode_cnav(raw,sat,13,sigid);
+		case SYS_GLO: return decode_gnav(raw,sat,13,U1(p+4),sigid);
+        case SYS_SBS: return decode_snav(raw,sat,13,sigid);
     }
     return 0;
 }

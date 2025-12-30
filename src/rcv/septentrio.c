@@ -6,6 +6,8 @@
 * reference :
 *     [1] Septentrio, mosaic-X5 reference guide applicable to version 4.8.0 of
 *         the firmware, June 4, 2020
+*     [2] Septentrio, PolaRx5 reference guide applicable to version 5.7.0 of
+*         the firmware, December 2, 2025
 *
 * version : $Revision:$
 *
@@ -83,21 +85,23 @@ static int32_t  I4(uint8_t *p) {int32_t  a; memcpy(&a,p,4); return a;}
 /* svid to satellite number ([1] 4.1.9) --------------------------------------*/
 static int svid2sat(int svid)
 {
-    if (svid<= 37) return satno(SYS_GPS,svid);
-    if (svid<= 61) return satno(SYS_GLO,svid-37);
-    if (svid<= 62) return 0; /* glonass unknown slot */
-    if (svid<= 68) return satno(SYS_GLO,svid-38);
-    if (svid<= 70) return 0;
-    if (svid<=106) return satno(SYS_GAL,svid-70);
-    if (svid<=119) return 0;
-    if (svid<=140) return satno(SYS_SBS,svid);
-    if (svid<=180) return satno(SYS_CMP,svid-140);
-	if (svid<=190) return satno(SYS_QZS,svid-180+192);
-    if (svid<=197) return satno(SYS_IRN,svid-190);
-    if (svid<=215) return satno(SYS_SBS,svid-57);
-    if (svid<=222) return satno(SYS_IRN,svid-208);
-    if (svid<=245) return satno(SYS_CMP,svid-182);
-    return 0; /* error */
+	if (svid<= 37) return satno(SYS_GPS,svid);         /* G1-G37 */
+	if (svid<= 61) return satno(SYS_GLO,svid-37);      /* R1-R24 */
+	if (svid<= 62) return 0; /* glonass unknown slot */
+	if (svid<= 68) return satno(SYS_GLO,svid-38);      /* R25-R30 */
+	if (svid<= 70) return 0;
+	if (svid<=106) return satno(SYS_GAL,svid-70);      /* E1-E36 */
+	if (svid<=119) return 0; /* LBand (MSS) satellite */
+	if (svid<=140) return satno(SYS_SBS,svid);         /* S20-S40 */
+	if (svid<=180) return satno(SYS_CMP,svid-140);     /* C1-C40 */
+	if (svid<=190) return satno(SYS_QZS,svid-180+192); /* J1-J10 */
+	if (svid<=197) return satno(SYS_IRN,svid-190);     /* I1-I7 */
+	if (svid<=215) return satno(SYS_SBS,svid-57);      /* S41-S58 */
+	if (svid<=222) return satno(SYS_IRN,svid-208);     /* I8-I14 */
+	if (svid<=245) return satno(SYS_CMP,svid-182);     /* C41-C63 */
+ 	if (svid<=249) return 0;
+	if (svid<=251) return satno(SYS_GPS,svid-212);     /* G38-G39 */
+	return 0; /* error */
 }
 /* signal number table ([1] 4.1.10) ------------------------------------------*/
 static uint8_t sig_tbl[SBF_MAXSIG+1][2]={ /* system, obs-code */
@@ -648,8 +652,42 @@ static int decode_georawl1(raw_t *raw)
         sprintf(raw->msgtype+strlen(raw->msgtype)," prn=%d",prn);
     }
     raw->sbsmsg.tow=(int)time2gpst(raw->time,&raw->sbsmsg.week);
-    raw->sbsmsg.prn=prn;
+	raw->sbsmsg.prn=prn;
+    raw->sbsmsg.band=0;/* L1 */
     
+    for (i=0;i<8;i++) {
+        setbitu(buff,32*i,32,U4(p+6+4*i));
+    }
+    memcpy(raw->sbsmsg.msg,buff,29); /* 226 bits w/o CRC */
+    raw->sbsmsg.msg[28]&=0xC0;
+    return 3;
+}
+/* decode SBF SBAS L5 navigation frame ---------------------------------------*/
+static int decode_georawl5(raw_t *raw)
+{
+    uint8_t *p=raw->buff+14,buff[32];
+    int i,svid,sat,prn;
+
+    if (raw->len<52) {
+		trace(2,"sbf georawl5 length error: len=%d\n",raw->len);
+		return -1;
+	}
+	svid=U1(p);
+	if (!(sat=svid2sat(svid))||satsys(sat,&prn)!=SYS_SBS) {
+		trace(2,"sbf georawl5 svid error: svid=%d\n",svid);
+		return -1;
+	}
+	if (!U1(p+1)) {
+        trace(3,"sbf georawl5 parity/crc error: prn=%d err=%d\n",prn,U1(p+2));
+        return 0;
+    }
+    if (raw->outtype) {
+        sprintf(raw->msgtype+strlen(raw->msgtype)," prn=%d",prn);
+    }
+    raw->sbsmsg.tow=(int)time2gpst(raw->time,&raw->sbsmsg.week);
+	raw->sbsmsg.prn=prn;
+	raw->sbsmsg.band=1;/* L5 */
+
     for (i=0;i<8;i++) {
         setbitu(buff,32*i,32,U4(p+6+4*i));
     }
@@ -1272,21 +1310,21 @@ static int decode_sbf(raw_t *raw)
         sprintf(raw->msgtype,"SBF %4d (%4d): %s",type,raw->len,tstr);
     }
     switch (type) {
-        case SBF_MEASEPOCH : return decode_measepoch (raw);
-		case SBF_MEASEXTRA : return decode_measextra (raw);
+        case SBF_MEASEPOCH : return decode_measepoch  (raw);
+		case SBF_MEASEXTRA : return decode_measextra  (raw);
 		case SBF_GPSRAWCA  : return decode_rawca(raw,SYS_GPS);
-        case SBF_GLORAWCA  : return decode_glorawca  (raw);
-        case SBF_GALRAWFNAV: return decode_galrawfnav(raw);
-        case SBF_GALRAWINAV: return decode_galrawinav(raw);
-        case SBF_GEORAWL1  : return decode_georawl1  (raw);
-        case SBF_BDSRAW    : return decode_bdsraw    (raw);
+		case SBF_GLORAWCA  : return decode_glorawca   (raw);
+		case SBF_GALRAWFNAV: return decode_galrawfnav (raw);
+		case SBF_GALRAWINAV: return decode_galrawinav (raw);
+		case SBF_GEORAWL1  : return decode_georawl1   (raw);
+		case SBF_BDSRAW    : return decode_bdsraw     (raw);
 		case SBF_QZSRAWL1CA: return decode_rawca(raw,SYS_QZS);
-		case SBF_NAVICRAW  : return decode_navicraw  (raw);
+		case SBF_NAVICRAW  : return decode_navicraw   (raw);
 		case SBF_NAVICRAWL1: return decode_navicrawl1 (raw);
 		case SBF_GPSRAWL2C : return decode_gpsrawcnav (raw,SYS_GPS);
 		case SBF_GPSRAWL5  : return decode_gpsrawcnav (raw,SYS_GPS);
 		case SBF_GPSRAWL1C : return decode_gpsrawcnav2(raw,SYS_GPS);
-		case SBF_GEORAWL5  : return 0;
+		case SBF_GEORAWL5  : return decode_georawl5   (raw);
 		case SBF_QZSRAWL2C : return decode_gpsrawcnav (raw,SYS_QZS);
 		case SBF_QZSRAWL5  : return decode_gpsrawcnav (raw,SYS_QZS);
 		case SBF_QZSRAWL1C : return decode_gpsrawcnav2(raw,SYS_QZS);

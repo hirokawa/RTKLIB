@@ -125,6 +125,9 @@ void __fastcall TCodeOptDialog::FormShow(TObject *Sender)
 	I53->Checked=mask[6][52]=='1';
 	I54->Checked=mask[6][53]=='1';
 	I55->Checked=mask[6][54]=='1';
+	I56->Checked=mask[6][55]=='1';
+	I57->Checked=mask[6][56]=='1';
+	I58->Checked=mask[6][57]=='1';
 	S01->Checked=mask[4][ 0]=='1';
 	S24->Checked=mask[4][23]=='1';
 	S25->Checked=mask[4][24]=='1';
@@ -243,6 +246,9 @@ void __fastcall TCodeOptDialog::BtnOkClick(TObject *Sender)
 	if (I53->Checked) mask[6][52]='1';
 	if (I54->Checked) mask[6][53]='1';
 	if (I55->Checked) mask[6][54]='1';
+	if (I56->Checked) mask[6][55]='1';
+	if (I57->Checked) mask[6][56]='1';
+	if (I58->Checked) mask[6][57]='1';
 	if (S01->Checked) mask[4][ 0]='1';
 	if (S24->Checked) mask[4][23]='1';
 	if (S25->Checked) mask[4][24]='1';
@@ -359,6 +365,9 @@ void __fastcall TCodeOptDialog::BtnSetAllClick(TObject *Sender)
 	I53->Checked=set;
 	I54->Checked=set;
 	I55->Checked=set;
+	I56->Checked=set;
+	I57->Checked=set;
+	I58->Checked=set;
 	S01->Checked=set;
 	S24->Checked=set;
 	S25->Checked=set;
@@ -465,18 +474,23 @@ void __fastcall TCodeOptDialog::UpdateEnable(void)
 	C65->Enabled=(NavSys&SYS_CMP)&&(FreqType&FREQTYPE_L5); //
 	C39->Enabled=(NavSys&SYS_CMP)&&(FreqType&FREQTYPE_L5); //
 	C30->Enabled=(NavSys&SYS_CMP)&&(FreqType&FREQTYPE_L4); //
-	I49->Enabled=(NavSys&SYS_IRN)&&(FreqType&FREQTYPE_L1);
-	I50->Enabled=(NavSys&SYS_IRN)&&(FreqType&FREQTYPE_L1);
-	I51->Enabled=(NavSys&SYS_IRN)&&(FreqType&FREQTYPE_L1);
-	I26->Enabled=(NavSys&SYS_IRN)&&(FreqType&FREQTYPE_L1);
-	I52->Enabled=(NavSys&SYS_IRN)&&(FreqType&FREQTYPE_L2);
-	I53->Enabled=(NavSys&SYS_IRN)&&(FreqType&FREQTYPE_L2);
-	I54->Enabled=(NavSys&SYS_IRN)&&(FreqType&FREQTYPE_L2);
-	I55->Enabled=(NavSys&SYS_IRN)&&(FreqType&FREQTYPE_L2);
+	I49->Enabled=(NavSys&SYS_IRN)&&(FreqType&FREQTYPE_L3);
+	I50->Enabled=(NavSys&SYS_IRN)&&(FreqType&FREQTYPE_L3);
+	I51->Enabled=(NavSys&SYS_IRN)&&(FreqType&FREQTYPE_L3);
+	I26->Enabled=(NavSys&SYS_IRN)&&(FreqType&FREQTYPE_L3);
+	I52->Enabled=(NavSys&SYS_IRN)&&(FreqType&FREQTYPE_S );
+	I53->Enabled=(NavSys&SYS_IRN)&&(FreqType&FREQTYPE_S );
+	I54->Enabled=(NavSys&SYS_IRN)&&(FreqType&FREQTYPE_S );
+	I55->Enabled=(NavSys&SYS_IRN)&&(FreqType&FREQTYPE_S );
+	I56->Enabled=(NavSys&SYS_IRN)&&(FreqType&FREQTYPE_L1);
+	I57->Enabled=(NavSys&SYS_IRN)&&(FreqType&FREQTYPE_L1);
+	I58->Enabled=(NavSys&SYS_IRN)&&(FreqType&FREQTYPE_L1);
 	S01->Enabled=(NavSys&SYS_SBS)&&(FreqType&FREQTYPE_L1);
 	S24->Enabled=(NavSys&SYS_SBS)&&(FreqType&FREQTYPE_L3);
 	S25->Enabled=(NavSys&SYS_SBS)&&(FreqType&FREQTYPE_L3);
 	S26->Enabled=(NavSys&SYS_SBS)&&(FreqType&FREQTYPE_L3);
 }
 //---------------------------------------------------------------------------
+
+
 

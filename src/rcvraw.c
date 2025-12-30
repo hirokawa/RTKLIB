@@ -102,6 +102,47 @@ static double getbitg(const uint8_t *buff, int pos, int len)
     double value=getbitu(buff,pos+1,len-1);
     return getbitu(buff,pos,1)?-value:value;
 }
+/* 64bit version of getbitu, getbitu2 */
+static uint64_t getbitu_64(const uint8_t *buff, int pos, int len)
+{
+    uint64_t bits=0;
+    int i;
+    for (i=pos;i<pos+len;i++) bits=(bits<<1)+((buff[i/8]>>(7-i%8))&1u);
+    return bits;
+}
+static int64_t getbits_64(const uint8_t *buff, int pos, int len)
+{
+    uint64_t bits=getbitu_64(buff,pos,len);
+    if (len<=0||64<=len||!(bits&(1ull<<(len-1)))) return (int64_t)bits;
+	return (int64_t)(bits|(~0ull<<len)); /* extend sign */
+}
+/* get sign-magnitude bits ---------------------------------------------------*/
+static double getbitg_64(const uint8_t *buff, int pos, int len)
+{
+	double value=getbitu_64(buff,pos+1,len-1);
+	return getbitu(buff,pos,1)?-value:value;
+}
+
+/* calculate time from Glonass epoch */
+static gtime_t gep2time(int N4, int NT, double sod)
+{
+	int j,doy;
+	gtime_t time;
+    double ep[6]={0,1,1,0,0,0};
+
+	if (NT<=366) {
+		j=1; doy=NT;
+	} else if (NT<=731) {
+		j=2; doy=NT-366;
+	} else if (NT<=1096) {
+		j=3; doy=NT-731;
+	} else {
+		j=4; doy=NT-1096;
+	}
+	ep[0]=1996+4*(N4-1)+j-1;
+	time=timeadd(epoch2time(ep),86400.0*(doy-1)+sod);
+	return utc2gpst(timeadd(time,-10800.0));
+}
 /* decode NavIC/IRNSS ephemeris ----------------------------------------------*/
 static int decode_irn_eph(const uint8_t *buff, eph_t *eph)
 {
@@ -305,12 +346,12 @@ static int decode_irn_l1_eph(const uint8_t *buff, eph_t *eph, int mode)
 	eph->A    = 42164200.0 + dA;
 	eph->deln = getbits(buff,i, 19)*P2_44*SC2RAD; i+= 19;
 	eph->ndot = getbits(buff,i, 23)*P2_57*SC2RAD; i+= 23;
-	eph->M0   = getbits2(buff,i,32,i+32,1)*P2_32*SC2RAD; i+= 33;
-	eph->e    = getbitu2(buff,i,32,i+32,1)*P2_34; i+= 33;
-    eph->omg  = getbits2(buff,i,32,i+32,1)*P2_32*SC2RAD; i+= 33;
-    eph->OMG0 = getbits2(buff,i,32,i+32,1)*P2_32*SC2RAD; i+= 33;
+	eph->M0   = getbits_64(buff,i,33)*P2_32*SC2RAD; i+= 33;
+	eph->e    = getbitu_64(buff,i,33)*P2_34; i+= 33;
+	eph->omg  = getbits_64(buff,i,33)*P2_32*SC2RAD; i+= 33;
+    eph->OMG0 = getbits_64(buff,i,33)*P2_32*SC2RAD; i+= 33;
     eph->OMGd = getbits(buff,i, 25)*P2_44*SC2RAD; i+= 25;
-	eph->i0   = getbits2(buff,i,32,i+32,1)*P2_32*SC2RAD; i+= 33;
+	eph->i0   = getbits_64(buff,i,33)*P2_32*SC2RAD; i+= 33;
 	eph->idot = getbits(buff,i, 15)*P2_44*SC2RAD; i+= 15;
 	eph->cis  = getbits(buff,i, 16)*P2_30; i+= 16;
 	eph->cic  = getbits(buff,i, 16)*P2_30; i+= 16;
@@ -1105,9 +1146,9 @@ static int decode_bds_cnav_eph1(const uint8_t *buff, int i, eph_t *eph)
 	eph->Adot=getbits(buff,i,25)*P2_21; i+=25;
 	eph->deln=getbits(buff,i,17)*P2_44*SC2RAD; i+=17;
     eph->ndot=getbits(buff,i,23)*P2_57*SC2RAD; i+=23;
-    eph->M0=getbits2(buff,i,32,i+32,1)*P2_32*SC2RAD; i+=33;
-    eph->e=getbitu2(buff,i,32,i+32,1)*P2_34; i+=33;
-	eph->omg=getbits2(buff,i,32,i+32,1)*P2_32*SC2RAD; i+=33;
+	eph->M0=getbits_64(buff,i,33)*P2_32*SC2RAD; i+=33;
+	eph->e=getbitu_64(buff,i,33)*P2_34; i+=33;
+	eph->omg=getbits_64(buff,i,33)*P2_32*SC2RAD; i+=33;
     eph->toe=bdt2gpst(bdt2time(eph->week,eph->toes)); /* bdt -> gpst */
 
 	return 0;
@@ -1115,8 +1156,8 @@ static int decode_bds_cnav_eph1(const uint8_t *buff, int i, eph_t *eph)
 /* decode BDS CNAV Ephemeris 2 */
 static int decode_bds_cnav_eph2(const uint8_t *buff, int i, eph_t *eph)
 {
-	eph->OMG0  =getbits2(buff,i,32,i+32,1)*P2_32*SC2RAD; i+=33;
-	eph->i0    =getbits2(buff,i,32,i+32,1)*P2_32*SC2RAD; i+=33;
+	eph->OMG0  =getbits_64(buff,i,33)*P2_32*SC2RAD; i+=33;
+	eph->i0    =getbits_64(buff,i,33)*P2_32*SC2RAD; i+=33;
 	eph->OMGd  =getbits(buff,i,19)*P2_44*SC2RAD; i+=19;
     eph->idot  =getbits(buff,i,15)*P2_44*SC2RAD; i+=15;
     eph->cis   =getbits(buff,i,16)*P2_30; i+=16;
@@ -1718,6 +1759,277 @@ extern int decode_glostr(const uint8_t *buff, geph_t *geph, double *utc)
     if (utc &&!decode_glostr_utc(buff,utc )) return 0;
     return 1;
 }
+/* decode header part of GLONASS CDMA messages */
+static int decode_glo_cdma_head(const uint8_t *buff, int i, int *slot,
+	int *H, int *ln, int *P1, int *P2)
+{
+	int KP,A;
+
+	*slot=getbitu(buff,i,6);i+=6; /* ID number of SV */
+	*H=getbitu(buff,i,1);i++;  /* healthy(0)/unhealthy(1) of SV j */
+	*ln=getbitu(buff,i,1);i++; /* validity(0)/non-validity of current string */
+	*P1=getbitu(buff,i,4);i+=4;/* SV call to ground controll */
+	*P2=getbitu(buff,i,1);i++; /* 0:sun-pointing, 1:noon/midnight maneuver */
+
+	KP=getbitu(buff,i,2);i+=2;
+	A=getbitu(buff,i,1);i++;
+	/*
+		A: indication of correction L3OCd time +/- 1s
+		0:no correction, 1: correction is planned
+		if A=1,KP=3: next string will be Type 1 in 2s duration
+		if A=1,KP=1: next string will be Type 2 in 4s duration
+	*/
+	if (A==1) return 0;
+
+    return 1;
+}
+
+/* decode GLONASS CDMA ephemeris ---------------------------------------------*/
+static int decode_glo_cdma_eph(const uint8_t *buff, geph_t *geph, int stype)
+{
+    geph_t geph_glo={0};
+    double tow,tod,tof,toe,tin;
+	int P1,P2,tb,ln,NT,H,N4,PS,Re,Rt,slot,M,week,FT,ofst1,ofst2;
+	int i=1,k,frn[4],ts[4],tscl;
+	const navtype_t nav_t[3]={NAV_GLO_L1OC,NAV_GLO_L2OC,NAV_GLO_L3OC};
+
+    trace(4,"decode_glo_cdma_eph:\n");
+
+	if (stype==0) { /* L1OC */
+		for (k=0;k<4;k++) {
+			i=38*8*k;
+			/*if(getbitu(buff,i,12)!=0x5f1) return 0;*/
+			frn[k]=getbitu(buff,i+12,6);
+			ts[k]=getbitu(buff,i+34,16);
+		}
+		ofst1=18;ofst2=16;
+		tscl=2;
+	} else if (stype==2) { /* L3OC */
+		for (k=0;k<4;k++) {
+			i=38*8*k;
+			/*if(getbitu(buff,i,20)!=0x494e) return 0;*/
+			frn[k]=getbitu(buff,i+20,6);
+			ts[k]=getbitu(buff,i+26,15);
+		}
+		ofst1=41;
+		ofst2=0;
+		tscl=3;
+	}
+
+
+	if(frn[0]!=10||frn[1]!=11||frn[2]!=12) return 0;
+	if(ts[1]!=ts[0]+1||ts[2]!=ts[1]+1) return 0;
+
+	/* type 10 */
+	i=ofst1;
+	decode_glo_cdma_head(buff,i,&slot,&H,&ln,&P1,&P2);
+	i+=16+ofst2;
+
+    if (!(geph_glo.sat=satno(SYS_GLO,slot))) {
+        trace(2,"decode_glo_cdma error: slot=%d\n",slot);
+        return 0;
+	}
+
+	N4=getbitu(buff,i,5);i+=5;
+	NT=getbitu(buff,i,11);i+=11;
+	M=getbitu(buff,i,3);i+=3;
+	/* 0:M(L3),1:K1(L3),3:K1(L2/L3),2:K2(L1/L2/L3) */
+	PS=getbitu(buff,i,6);i+=6; /* pseudoframe size */
+	tb=getbitu(buff,i,10);i+=10;
+	geph_glo.aode=getbitu(buff,i,8)*0.25;i+=8;   /* Ee age of ephemeris */
+	geph_glo.aodc=getbitu(buff,i,8)*0.25;i+=8+4; /* Et age of clock */
+	Re=getbitu(buff,i,2);i+=2; /* 1:relay,2:prediction,3:inter-satellite */
+	Rt=getbitu(buff,i,2);i+=2;
+	geph_glo.urai[0]=getbitu(buff,i,5);i+=5; /* Fe ephemeris accuracy index */
+	geph_glo.urai[1]=getbitu(buff,i,5);i+=5; /* Ft clock accuracy index */
+	geph_glo.taun=getbitg(buff,i,32)*P2_38;i+=32;
+	geph_glo.gamn=getbitg(buff,i,19)*P2_48;i+=19;
+	geph_glo.beta=getbitg(buff,i,15)*P2_57;i+=15;
+
+	geph_glo.src=(Re<<2)|Rt;
+	geph_glo.svh=(ln<<2)|H;
+
+	/* flags: b7-8:M,b6:P4,b5:P3,b4:P2,b2-3:P1,b0-1:P */
+	geph_glo.flag=(M<<7)|(P2<<4)|(P1<<2);
+	geph_glo.toe=gep2time(N4, NT, tb*90.0);
+	geph_glo.tof=gep2time(N4, NT, ts[0]*tscl);
+	{
+		double ep[7];
+		time2epoch(gpst2utc(geph_glo.toe),ep);
+		time2epoch(geph_glo.tof,ep);
+    }
+	/* type 11 */
+	i=38*8+ofst1;
+	decode_glo_cdma_head(buff,i,&slot,&H,&ln,&P1,&P2);
+	i+=16+ofst2;
+
+	for (k=0;k<3;k++) {
+		geph_glo.pos[k]=getbitg_64(buff,i,40)*P2_20*1E3; i+=40;
+	}
+	geph_glo.vel[0]=getbitg_64(buff,i,35)*P2_30*1E3; i+=35;
+
+	if (stype==0) {
+		for (k=0;k<2;k++) {
+			geph_glo.dpos[k]=getbitg(buff,i,13)*P2_10; i+=13;
+		}
+	} else if (stype==2) {
+		geph_glo.vel[1]=getbitg_64(buff,i,35)*P2_30*1E3; i+=35;
+	}
+
+	/* type 12 */
+	i=38*8*2+ofst1;
+	decode_glo_cdma_head(buff,i,&slot,&H,&ln,&P1,&P2);
+	i+=16+ofst2;
+
+	if (stype==0) {
+		geph_glo.dpos[2]=getbitg(buff,i,13)*P2_10; i+=13;
+	} else if (stype==2) {
+		geph_glo.vel[2]=getbitg_64(buff,i,35)*P2_30*1E3; i+=35;
+	}
+	for (k=0;k<3;k++) {
+		geph_glo.acc[k]=getbitg(buff,i,15)*P2_39*1E3; i+=15;
+	}
+	if (stype==2) {
+		for (k=0;k<3;k++) {
+			geph_glo.dpos[k]=getbitg(buff,i,13)*P2_10; i+=13;
+		}
+	}
+	geph_glo.tgd[stype]=getbitg(buff,i,18)*P2_38; i+=18+30;
+	/* dtau_L2(L1OC), dtau_L3(L3OC) [s] */
+
+	/* type 16 */
+	i=38*8*3+ofst1;
+	decode_glo_cdma_head(buff,i,&slot,&H,&ln,&P1,&P2);
+	i+=16+ofst2;
+	geph_glo.tin=getbitu(buff,i,22)*P2_5; i+=22; /* time to start noon/midnigh maneuver */
+	geph_glo.yaw=getbitu(buff,i,15)*P2_14*SC2RAD; i+=15; /* yaw angle at tin */
+	geph_glo.sn=getbitu(buff,i,1);i++; /* sign flag of maneuver */
+	geph_glo.wmax=getbitu(buff,i,17)*P2_26*SC2RAD; i+=17; /* maximum angular rate */
+	geph_glo.dyaw=getbitu(buff,i,17)*P2_26*SC2RAD; i+=17; /* angular rate at tin */
+	geph_glo.dw=getbitu(buff,i,15)*P2_30*SC2RAD; i+=15; /* constant angular acceleration */
+	geph_glo.tau1=getbitu(buff,i,13)*P2_5; i+=13;  /* time from tin to end of acceleration */
+	geph_glo.tau2=getbitu(buff,i,17)*P2_5; i+=17;  /* time to perform maneuver at wmax */
+
+	geph_glo.frq=0; /* set default */
+	geph_glo.iode=tb;
+	geph_glo.navtype=nav_t[stype];
+    *geph=geph_glo;
+    return 1;
+}
+/* decode GLONASS CDMA UTC parameters ----------------------------------------*/
+static int decode_glo_cdma_utc(const uint8_t *buff, double *utc, int stype)
+{
+    int i,sz1,ofst1,ofst2;
+
+	if (stype==0) {
+		sz1=12;ofst1=181;ofst2=196;
+	} else if (stype==2) {
+		sz1=20;ofst1=188;ofst2=176;
+	}
+
+	trace(4,"decode_glo_cdma_utc:\n");
+
+	if (getbitu(buff,sz1,6)!=10) return 0;
+	if (getbitu(buff,38*8*2+sz1,6)!=12) return 0;
+
+	/* type 10 */
+	i=ofst1;
+	utc[0]=getbitg_64(buff,i,40)*P2_31; i+=40; /* tau_c */
+	utc[1]=getbitg(buff,i,13)*P2_49; i+=13;         /* dtau_c */
+
+	/* type 12 */
+	i=38*8*2+ofst2;
+	utc[2]=getbitg(buff,i,30)*P2_38; i+=30; /* tau_GPS */
+    utc[3]=utc[4]=utc[5]=utc[6]=utc[7]=0.0;
+    return 1;
+}
+/* decode GLONASS CDMA Ionosphere parameters ----------------------------------------*/
+static int decode_glo_cdma_ion(const uint8_t *buff, double *ion, int stype)
+{
+	int i,Nb,sz1,ofst1;
+
+	if (stype==0) {
+		sz1=12;ofst1=38+118;
+	} else if (stype==2) {
+		sz1=20;ofst1=37+118;
+	}
+
+	trace(4,"decode_glo_cdma_ion:\n");
+
+    i=38*8*4+sz1;
+	if (getbitu(buff,i,6)!=25) return 0;
+
+	/* type 25 */
+	i+=ofst1;
+	ion[0]=getbitu(buff,i,9)*P2_7; i+=9; /* c_A */
+	ion[1]=getbitu(buff,i,13)*P2_4; i+=13; /* c_F10.7 [SFU] */
+	ion[2]=getbitu(buff,i,9); i+=9; /* c_Ap [nT] */
+
+    return 1;
+}
+/* decode GLONASS CDMA EOP parameters ----------------------------------------*/
+static int decode_glo_cdma_eop(const uint8_t *buff, double *eop, int stype)
+{
+	int i,Nb,N4,sz1,ofst1;
+
+	if (stype==0) {
+		sz1=12;ofst1=38;
+	} else if (stype==2) {
+		sz1=20;ofst1=37;
+	}
+
+    trace(4,"decode_glo_cdma_eop:\n");
+
+	i=sz1;
+	if (getbitu(buff,i,6)!=10) return 0;
+	/* type 10 */
+	i+=ofst1;
+	N4=getbitu(buff,i,5);
+
+	i=38*8*4+sz1;
+	if (getbitu(buff,i,6)!=25) return 0;
+	/* type 25 */
+	i+=ofst1;
+	Nb=getbitu(buff,i,6);i+=11;  /* day */
+	eop[1]=getbitg(buff,i,16)*P2_14; i+=16; /* xp */
+	eop[2]=getbitg(buff,i,16)*P2_14; i+=16; /* yp */
+	eop[3]=getbitg(buff,i,9)*P2_14; i+=9; /* dxp */
+	eop[4]=getbitg(buff,i,9)*P2_14; i+=9; /* dyp */
+	eop[5]=getbitg(buff,i,7)*P2_14; i+=7; /* ddxp */
+	eop[6]=getbitg(buff,i,7)*P2_14; i+=7; /* ddyp */
+	eop[7]=getbitg(buff,i,25)*P2_16; i+=25; /* B0 [s] */
+	eop[8]=getbitg(buff,i,10)*P2_16; i+=10; /* B1 [s/msd] */
+	eop[9]=getbitg(buff,i,8)*P2_16; i+=8; /* B2 [s/msd^2] */
+	i+=9+13+9;
+	eop[10]=getbitg(buff,i,9); i+=9; /* UTA-TAI */
+	eop[0]=time2gpst(gep2time(N4, Nb, 0.0),NULL);
+
+    return 1;
+}
+/* decode GLONASS CDMA navigation data strings --------------------------------
+* decode GLONASS navigation data string (ref [3])
+* args   : uint8_t *buff    I   GLONASS navigation data string (300 bits x 5)
+*                                 buff[ 0-37 ]: string type 10
+*                                 buff[38-75 ]: string type 11
+*                                 buff[76-113]: string type 12
+*          geph_t *geph     IO  GLONASS ephemeris      (NULL: not output)
+*          double *ion      IO  Ionospheric model parameters
+*          double *utc      IO  GLONASS UTC parameters (NULL: not output)
+*          double *eop      IO  EOP parameters
+*          int stype        I   signal type 0:L1OC,1:L2OC,2:L3OC
+* return : status (1:ok,0:error)
+*-----------------------------------------------------------------------------*/
+extern int decode_glo_cdma(const uint8_t *buff, geph_t *geph, double *ion,
+	double *utc, double *eop, int stype)
+{
+    trace(4,"decode_glo_cdma:\n");
+
+	if (geph&&!decode_glo_cdma_eph(buff,geph,stype)) return 0;
+	if (utc &&!decode_glo_cdma_utc(buff,utc,stype)) return 0;
+	if (ion &&!decode_glo_cdma_ion(buff,ion,stype)) return 0;
+	if (eop &&!decode_glo_cdma_eop(buff,eop,stype)) return 0;
+	return 1;
+}
 /* decode GPS/QZSS ephemeris -------------------------------------------------*/
 static int decode_gps_lnav_eph(const uint8_t *buff, eph_t *eph, int sys)
 {
@@ -1725,7 +2037,7 @@ static int decode_gps_lnav_eph(const uint8_t *buff, eph_t *eph, int sys)
 	double tow1,tow2,tow3,toc,sqrtA;
 	int i=48,id1,id2,id3,week,iodc0,iodc1,iode,tgd;
 
-	trace(4,"decode_frame_eph:\n");
+	trace(4,"decode_gps_lnav_eph:\n");
 
 	i=240*0+24; /* subframe 1 */
 	tow1        =getbitu(buff,i,17)*6.0;          i+=17+2;
@@ -2077,17 +2389,17 @@ static int decode_gps_cnav_eph(const uint8_t *buff, eph_t *eph, int sys)
     eph_sat.Adot = getbits(buff,i, 25)*P2_21; i+= 25;
     eph_sat.deln = getbits(buff,i, 17)*P2_44*SC2RAD; i+= 17;
     eph_sat.ndot = getbits(buff,i, 23)*P2_57*SC2RAD; i+= 23;
-    eph_sat.M0   = getbits2(buff,i,32,i+32,1)*P2_32*SC2RAD; i+= 33;
-    eph_sat.e    = getbitu2(buff,i,32,i+32,1)*P2_34; i+= 33;
-    eph_sat.omg  = getbits2(buff,i,32,i+32,1)*P2_32*SC2RAD; i+= 33;
+	eph_sat.M0   = getbits_64(buff,i,33)*P2_32*SC2RAD; i+= 33;
+	eph_sat.e    = getbitu_64(buff,i,33)*P2_34; i+= 33;
+	eph_sat.omg  = getbits_64(buff,i,33)*P2_32*SC2RAD; i+= 33;
     eph_sat.integ= getbitu(buff,i, 1);  i+= 1;
     l2cphase  = getbitu(buff,i, 1);  i+= 1; /* L2C phasing */
 
     i=280+38; /* ephemeris 2 */
     toe       = getbitu(buff,i, 11)*300.0; i+= 11;
     if ((double)toe != eph_sat.toes) return 0;
-    eph_sat.OMG0 = getbits2(buff,i,32,i+32,1)*P2_32*SC2RAD; i+= 33;
-    eph_sat.i0   = getbits2(buff,i,32,i+32,1)*P2_32*SC2RAD; i+= 33;
+	eph_sat.OMG0 = getbits_64(buff,i,33)*P2_32*SC2RAD; i+= 33;
+	eph_sat.i0   = getbits_64(buff,i,33)*P2_32*SC2RAD; i+= 33;
     eph_sat.OMGd = (getbits(buff,i, 17)*P2_44-2.6e-9)*SC2RAD; i+= 17;
     eph_sat.idot = getbits(buff,i, 15)*P2_44*SC2RAD; i+= 15;
     eph_sat.cis  = getbits(buff,i, 16)*P2_30; i+= 16;
@@ -2267,11 +2579,11 @@ static int decode_gps_cnav2_eph(const uint8_t *buff, eph_t *eph, int sys, int mo
     eph->Adot = getbits(buff,i, 25)*P2_21; i+= 25;
     eph->deln = getbits(buff,i, 17)*P2_44*SC2RAD; i+= 17;
     eph->ndot = getbits(buff,i, 23)*P2_57*SC2RAD; i+= 23;
-    eph->M0   = getbits2(buff,i,32,i+32,1)*P2_32*SC2RAD; i+= 33;
-    eph->e    = getbitu2(buff,i,32,i+32,1)*P2_34; i+= 33;
-    eph->omg  = getbits2(buff,i,32,i+32,1)*P2_32*SC2RAD; i+= 33;
-    eph->OMG0 = getbits2(buff,i,32,i+32,1)*P2_32*SC2RAD; i+= 33;
-    eph->i0   = getbits2(buff,i,32,i+32,1)*P2_32*SC2RAD; i+= 33;
+	eph->M0   = getbits_64(buff,i,33)*P2_32*SC2RAD; i+= 33;
+	eph->e    = getbitu_64(buff,i,33)*P2_34; i+= 33;
+	eph->omg  = getbits_64(buff,i,33)*P2_32*SC2RAD; i+= 33;
+	eph->OMG0 = getbits_64(buff,i,33)*P2_32*SC2RAD; i+= 33;
+	eph->i0   = getbits_64(buff,i,33)*P2_32*SC2RAD; i+= 33;
     eph->OMGd = (getbits(buff,i, 17)*P2_44-2.6e-9)*SC2RAD; i+= 17;
     eph->idot = getbits(buff,i, 15)*P2_44*SC2RAD; i+= 15;
     eph->cis  = getbits(buff,i, 16)*P2_30; i+= 16;
@@ -2503,7 +2815,7 @@ extern int init_raw(raw_t *raw, int format)
         !(raw->obuf.data=(obsd_t *)malloc(sizeof(obsd_t)*MAXOBS))||
 		!(raw->nav.eph  =(eph_t  *)malloc(sizeof(eph_t )*MAXSAT*4))||
 		!(raw->nav.alm  =(alm_t  *)malloc(sizeof(alm_t )*MAXSAT))||
-		!(raw->nav.geph =(geph_t *)malloc(sizeof(geph_t)*NSATGLO))||
+		!(raw->nav.geph =(geph_t *)malloc(sizeof(geph_t)*NSATGLO*4))||
         !(raw->nav.seph =(seph_t *)malloc(sizeof(seph_t)*NSATSBS*2))) {
         free_raw(raw);
         return 0;
@@ -2512,13 +2824,13 @@ extern int init_raw(raw_t *raw, int format)
     raw->obuf.n=0;
     raw->nav.n =MAXSAT*4;
     raw->nav.na=MAXSAT;
-    raw->nav.ng=NSATGLO;
+    raw->nav.ng=NSATGLO*4;
     raw->nav.ns=NSATSBS*2;
     for (i=0;i<MAXOBS   ;i++) raw->obs.data [i]=data0;
     for (i=0;i<MAXOBS   ;i++) raw->obuf.data[i]=data0;
-    for (i=0;i<MAXSAT*2 ;i++) raw->nav.eph  [i]=eph0;
+    for (i=0;i<MAXSAT*4 ;i++) raw->nav.eph  [i]=eph0;
     for (i=0;i<MAXSAT   ;i++) raw->nav.alm  [i]=alm0;
-    for (i=0;i<NSATGLO  ;i++) raw->nav.geph [i]=geph0;
+    for (i=0;i<NSATGLO*4;i++) raw->nav.geph [i]=geph0;
     for (i=0;i<NSATSBS*2;i++) raw->nav.seph [i]=seph0;
     raw->sta.name[0]=raw->sta.marker[0]='\0';
     raw->sta.antdes[0]=raw->sta.antsno[0]='\0';
@@ -2713,7 +3025,11 @@ extern void set_utc_param(raw_t *raw, int sat, navtype_t navtype, double *utc)
     sto->dst=TSYS_UTC;
 	sto->a[0]=utc[0];
 	sto->a[1]=utc[1];
-	if (navtype==NAV_GLO_FDMA) return; /* only a0,a1 is available in GLO/FDMA */
+	if (navtype==NAV_GLO_FDMA) {
+        sto->t0=raw->time;
+		return; /* only a0,a1 is available in GLO/FDMA */
+	}
+
 	if (sys==SYS_IRN) {
 		sto->t0=gst2time(utc[3],utc[2]);
 		sto->tlsf=gst2time(utc[5],utc[6]*86400.0);

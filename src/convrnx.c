@@ -1089,21 +1089,21 @@ static void convnav(FILE **ofp, rnxopt_t *opt, strfile_t *str, int *n)
     }
     else if (sys==SYS_GLO) {
         if (ofp[1]&&!sep_nav) {
-            outrnxgnavb(ofp[1],opt,str->nav->geph+prn-1);
+            outrnxgnavb(ofp[1],opt,str->nav->geph+prn-1+MAXSAT*set);
             n[1]++;
         }
         else if (ofp[2]&&sep_nav) {
-            outrnxgnavb(ofp[2],opt,str->nav->geph+prn-1);
+            outrnxgnavb(ofp[2],opt,str->nav->geph+prn-1+MAXSAT*set);
             n[2]++;
         }
     }
     else if (sys==SYS_SBS) {
         if (ofp[1]&&!sep_nav) {
-            outrnxhnavb(ofp[1],opt,str->nav->seph+prn-MINPRNSBS);
+			outrnxhnavb(ofp[1],opt,str->nav->seph+prn-MINPRNSBS+MAXSAT*set);
             n[1]++;
         }
         else if (ofp[3]&&sep_nav) {
-            outrnxhnavb(ofp[3],opt,str->nav->seph+prn-MINPRNSBS);
+            outrnxhnavb(ofp[3],opt,str->nav->seph+prn-MINPRNSBS+MAXSAT*set);
             n[3]++;
         }
     }

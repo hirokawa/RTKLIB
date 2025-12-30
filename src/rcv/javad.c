@@ -1159,7 +1159,7 @@ static int decode_lD(raw_t *raw)
     type=U1(p); p+=1;
     len =U1(p); p+=1;
     
-    if (raw->len!=14+len*4) {
+    if (raw->len!=15+len*4) {
         trace(2,"javad lD length error: len=%d\n",raw->len);
         return -1;
     }
@@ -1193,7 +1193,87 @@ static int decode_lD(raw_t *raw)
         if (geph.iode==raw->nav.geph[prn-1].iode) return 0; /* unchanged */
     }
     raw->nav.geph[prn-1]=geph;
-    raw->ephsat=sat;
+	raw->ephsat=sat;
+	raw->ephset=0;
+    return 2;
+}
+/* decode [ud] GLONASS CDMA raw navigation data ------------------------------*/
+static int decode_ud(raw_t *raw)
+{
+    geph_t geph={0};
+    uint8_t *p=raw->buff+5,buff[40]={0};
+    char *msg;
+	int i,sat,prn,frq,time,type,len,id,j,ts,s,ofst;
+	double ion[8]={0},utc[7]={0},eop[8]={0};
+
+    if (!checksum(raw->buff,raw->len)) {
+        trace(2,"javad ud checksum error: len=%d\n",raw->len);
+        return -1;
+    }
+    trace(3,"decode_ud: prn=%3d\n",U1(p));
+
+    prn =U1(p); p+=1;
+    time=U4(p); p+=4;
+    type=U1(p); p+=1; /* 0:L1,1:L2,2:L3 */
+	len =U1(p); p+=1;
+
+    if (raw->len!=14+len*4) {
+        trace(2,"javad ud length error: len=%d\n",raw->len);
+        return -1;
+    }
+    if (raw->outtype) {
+        msg=raw->msgtype+strlen(raw->msgtype);
+        sprintf(msg," prn=%2d frq=%2d time=%7d type=%d",prn,frq,time,type);
+    }
+    if (!(sat=satno(SYS_GLO,prn))) {
+		trace(2,"javad ud satellite error: prn=%d\n",prn);
+        return 0;
+    }
+    if (type<0||type>2) {
+        trace(3,"javad ud type unsupported: type=%d\n",type);
+        return 0;
+    }
+
+	for (i=0;i<len;i++,p+=4) {
+		setbitu(buff,i*32,32,U4(p));
+	}
+
+	if (type==0) {
+		ofst=12;
+	} else if (type==2) {
+		ofst=20;
+	}
+	id=getbitu(buff,ofst,6); /* page type */
+	if (id>=10&&id<=12) {
+        s=id-10;
+	} else if (id==16) {
+		s=3;
+	} else if (id==25) {
+		s=4;
+	} else {
+        return 0;
+	}
+
+	switch (type) {
+		case 0:ofst=SF_OFST_GLO_L1OC;break;
+		case 1:ofst=SF_OFST_GLO_L2OC;break;
+		case 2:ofst=SF_OFST_GLO_L3OC+30;break;
+		default:ofst=SF_OFST_GLO_L3OC;
+	}
+
+	/* get 300 bit (32x9+12) in frame  */
+	memcpy(raw->subfrm[sat-1]+s*38+ofst,buff,38);
+
+	/* decode glonass ephemeris strings */
+	if (!decode_glo_cdma(raw->subfrm[sat-1]+ofst,&geph,NULL,NULL,NULL,type)) return 0;
+	/*geph.tof=raw->time;*/
+
+    if (!strstr(raw->opt,"-EPHALL")) {
+        if (geph.iode==raw->nav.geph[prn-1+(type+1)*MAXSAT].iode) return 0; /* unchanged */
+    }
+    raw->nav.geph[prn-1+(type+1)*MAXSAT]=geph;
+	raw->ephsat=sat;
+	raw->ephset=type+1;
     return 2;
 }
 /* decode [ED] Galileo raw navigation data -----------------------------------*/
@@ -1291,7 +1371,7 @@ static int decode_ED(raw_t *raw)
             }
 			eph.code|=(1<<1); /* data source: E5a */
 
-			decode_gal_inav(raw->subfrm[sat-1],NULL,ion,utc);
+			decode_gal_fnav(raw->subfrm[sat-1],NULL,ion,utc);
 			adj_utcweek(raw->time,utc,8);
 			set_ion_param(raw,sat,NAV_GAL_FNAV,ion);
 			set_utc_param(raw,sat,NAV_GAL_FNAV,utc);
@@ -2198,6 +2278,7 @@ static int decode_javad(raw_t *raw)
 	if (!strncmp(p,"id",2)) return decode_id(raw); /* IRNSS raw navigation data */
 	if (!strncmp(p,"LD",2)) return decode_LD(raw); /* GLONASS raw navigation data */
 	if (!strncmp(p,"lD",2)) return decode_lD(raw); /* GLONASS raw navigation data */
+	if (!strncmp(p,"ud",2)) return decode_ud(raw); /* GLCDMA raw navigation data */
 	if (!strncmp(p,"WD",2)) return decode_WD(raw); /* SBAS raw navigation data */
     if (!strncmp(p,"TC",2)) return decode_TC(raw); /* CA/L1 continuous track time */
     

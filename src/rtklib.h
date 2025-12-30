@@ -320,11 +320,12 @@ extern "C" {
 #define FREQTYPE_L3 0x04                /* frequency type: L5/E5a/L3 */
 #define FREQTYPE_L4 0x08                /* frequency type: L6/E6/B3 */
 #define FREQTYPE_L5 0x10                /* frequency type: E5ab */
+#define FREQTYPE_S  0x20                /* frequency type: S */
 #define FREQTYPE_ALL 0xFF               /* frequency type: all */
 
 #define CODE_NONE   0                   /* obs code: none or unknown */
 #define CODE_L1C    1                   /* obs code: L1C/A,G1C/A,E1C (GPS,GLO,GAL,QZS,SBS) */
-#define CODE_L1P    2                   /* obs code: L1P,G1P,B1P (GPS,GLO,BDS) */
+#define CODE_L1P    2                   /* obs code: L1P,G1P,B1CP (GPS,GLO,BDS) */
 #define CODE_L1W    3                   /* obs code: L1 Z-track (GPS) */
 #define CODE_L1Y    4                   /* obs code: L1Y        (GPS) */
 #define CODE_L1M    5                   /* obs code: L1M        (GPS) */
@@ -334,9 +335,9 @@ extern "C" {
 #define CODE_L1E    9                   /* obs code: L1C/B      (QZS) */
 #define CODE_L1A    10                  /* obs code: E1A,B1A    (GAL,BDS) */
 #define CODE_L1B    11                  /* obs code: E1B        (GAL) */
-#define CODE_L1X    12                  /* obs code: E1B+C,L1C(D+P),B1D+P (GAL,QZS,BDS) */
+#define CODE_L1X    12                  /* obs code: E1B+C,L1C(D+P),B1CD+P (GAL,QZS,BDS) */
 #define CODE_L1Z    13                  /* obs code: E1A+B+C,L1S (GAL,QZS) */
-#define CODE_L2C    14                  /* obs code: L2C/A,G1C/A (GPS,GLO) */
+#define CODE_L2C    14                  /* obs code: L2C/A,G2C/A (GPS,GLO) */
 #define CODE_L2D    15                  /* obs code: L2 L1C/A-(P2-P1) (GPS) */
 #define CODE_L2S    16                  /* obs code: L2C(M)     (GPS,QZS) */
 #define CODE_L2L    17                  /* obs code: L2C(L)     (GPS,QZS) */
@@ -378,7 +379,7 @@ extern "C" {
 #define CODE_L9B    53                  /* obs code: SB RS(D)   (IRN) */
 #define CODE_L9C    54                  /* obs code: SC RS(P)   (IRN) */
 #define CODE_L9X    55                  /* obs code: SB+C       (IRN) */
-#define CODE_L1D    56                  /* obs code: B1D        (BDS) */
+#define CODE_L1D    56                  /* obs code: B1CD       (BDS) */
 #define CODE_L5D    57                  /* obs code: L5D(L5S),B2aD (QZS,BDS) */
 #define CODE_L5P    58                  /* obs code: L5P(L5S),B2aP (QZS,BDS) */
 #define CODE_L5Z    59                  /* obs code: L5D+P(L5S) (QZS) */
@@ -565,9 +566,15 @@ extern "C" {
 #define SF_OFST_GAL_INAV	0		/* Offset of raw->subfrm for GAL INAV */
 #define SF_OFST_GAL_FNAV	96		/* Offset of raw->subfrm for GAL FNAV */
 #define SF_OFST_GAL_CNAV	283		/* Offset of raw->subfrm for GAL CNAV */
+#define SF_OFST_GLO_FDMA	0		/* Offset of raw->subfrm for GLO FDMA */
+#define SF_OFST_GLO_L1OC	230		/* Offset of raw->subfrm for GLO L1OC */
+#define SF_OFST_GLO_L2OC	420		/* Offset of raw->subfrm for GLO L2OC */
+#define SF_OFST_GLO_L3OC	40		/* Offset of raw->subfrm for GLO L3OC */
 
-#define P2_5        0.03125             /* 2^-5 */
-#define P2_6        0.015625            /* 2^-6 */
+#define P2_4        6.250000000000000E-02 /* 2^-4 */
+#define P2_5        3.125000000000000E-02 /* 2^-5 */
+#define P2_6        1.562500000000000E-02 /* 2^-6 */
+#define P2_7        7.812500000000000E-03 /* 2^-7 */
 #define P2_8        3.906250000000000E-03 /* 2^-8 */
 #define P2_9        1.953125000000000E-03 /* 2^-9 */
 #define P2_10       9.765625000000000E-04 /* 2^-10 */
@@ -584,6 +591,7 @@ extern "C" {
 #define P2_23       1.192092895507810E-07 /* 2^-23 */
 #define P2_24       5.960464477539063E-08 /* 2^-24 */
 #define P2_25       2.980232238769531E-08 /* 2^-25 */
+#define P2_26       1.490116119384766E-08 /* 2^-26 */
 #define P2_27       7.450580596923828E-09 /* 2^-27 */
 #define P2_28       3.725290298461914E-09 /* 2^-28 */
 #define P2_29       1.862645149230957E-09 /* 2^-29 */
@@ -640,6 +648,7 @@ typedef enum {                  /* Navitation message format type           */
 	NAV_GAL_CNAV,               /* Navigation message format GAL CNAV   	*/
 	NAV_GLO_FDMA,               /* Navigation message format GLO FDMA   	*/
 	NAV_GLO_L1OC,               /* Navigation message format GLO L1OC   	*/
+	NAV_GLO_L2OC,               /* Navigation message format GLO L2OC   	*/
 	NAV_GLO_L3OC,               /* Navigation message format GLO L3OC   	*/
 	NAV_QZS_LNAV,               /* Navigation message format QZS LNAV   	*/
 	NAV_QZS_CNAV,               /* Navigation message format QZS CNAV   	*/
@@ -766,9 +775,13 @@ typedef struct {        /* GLONASS broadcast ephemeris type */
     int iode;           /* IODE (0-6 bit of tb field) */
     int frq;            /* satellite frequency number */
     int svh,sva,age;    /* satellite health, accuracy, age of operation */
+    int urai[5];        /* user range error index Fe,Ft */
 	int code;
 	int health;         /* health flags: b2:l(3),b1:Ac,b0:C */
-	int flag;           /* flags: b708:M,b6:P4,b5:P3,b4:P2,b2-3:P1,b0-1:P */
+	int flag;           /* flags: b7-8:M,b6:P4,b5:P3,b4:P2,b2-3:P1,b0-1:P */
+	int src;            /* source of ephemeric(b3-2)/clock(b1-0) */
+    int sattype;        /* satellite type */
+	int sn;             /* sign flag of maneuver */
 	navtype_t navtype;  /* navigation message format type */
     gtime_t toe;        /* epoch of epherides (gpst) */
     gtime_t tof;        /* message frame time (gpst) */
@@ -777,7 +790,13 @@ typedef struct {        /* GLONASS broadcast ephemeris type */
     double acc[3];      /* satellite acceleration (ecef) (m/s^2) */
     double taun,gamn,beta;   /* SV clock bias (s)/relative freq bias */
 	double dtaun;       /* delay between L1 and L2 (s) */
-    double tgd[3];
+	double tgd[3];
+	double dpos[3];     /* antenna phase center offset [m] */
+	double aode,aodc;   /* age of ephemeric, clock [days] */
+    double tin;
+	double yaw,dyaw;
+	double wmax,dw;
+	double tau1,tau2;
 } geph_t;
 
 typedef struct {        /* precise ephemeris type */
@@ -849,7 +868,8 @@ typedef struct {        /* TEC grid type */
 } tec_t;
 
 typedef struct {        /* SBAS message type */
-    int week,tow;       /* receiption time */
+	int week,tow;       /* receiption time */
+    int band;           /* 0:L1,1:L5 */
     uint8_t prn,rcv;    /* SBAS satellite PRN,receiver number */
     uint8_t msg[29];    /* SBAS message (226bit) padded by 0 */
 } sbsmsg_t;
@@ -1347,7 +1367,7 @@ typedef struct {        /* receiver raw data control type */
     sbsmsg_t sbsmsg;    /* SBAS message */
 	char msgtype[256];  /* last message type */
 	l6msg_t l6msg[NSATQZS*2];  /* QZSS L6 message */
-    uint8_t subfrm[MAXSAT][600]; /* subframe buffer */
+    uint8_t subfrm[MAXSAT][610]; /* subframe buffer */
     double lockt[MAXSAT][NFREQ+NEXOBS]; /* lock time (s) */
     double icpp[MAXSAT],off[MAXSAT],icpc; /* carrier params for ss2 */
     double prCA[MAXSAT],dpCA[MAXSAT]; /* L1/CA pseudrange/doppler for javad */
@@ -1745,6 +1765,8 @@ EXPORT int decode_gps_cnav2(const uint8_t *buff, eph_t *eph, alm_t *alm,
 						double *ion, double *utc, double *eop, int sys, int mode);
 EXPORT int test_glostr(const uint8_t *buff);
 EXPORT int decode_glostr(const uint8_t *buff, geph_t *geph, double *utc);
+EXPORT int decode_glo_cdma(const uint8_t *buff, geph_t *geph, double *ion,
+	double *utc, double *eop, int stype);
 EXPORT int decode_bds_d1(const uint8_t *buff, eph_t *eph, double *ion,
 						 double *utc);
 EXPORT int decode_bds_d2(const uint8_t *buff, eph_t *eph, double *utc);

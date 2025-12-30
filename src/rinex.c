@@ -3601,36 +3601,93 @@ extern int outrnxgnavb(FILE *fp, const rnxopt_t *opt, const geph_t *geph)
         sep="    ";
     }
     outnavf(fp,-geph->taun     );
-    outnavf(fp,geph->gamn      );
-    outnavf(fp,tof             );
+	outnavf(fp,geph->gamn      );
+	if (geph->navtype==NAV_GLO_FDMA) {
+		 outnavf(fp,tof             );
+	} else {
+         outnavf(fp,geph->beta      );
+	}
     fprintf(fp,"\n%s",sep      );
     
-    outnavf(fp,geph->pos[0]/1E3);
-    outnavf(fp,geph->vel[0]/1E3);
-    outnavf(fp,geph->acc[0]/1E3);
-    outnavf(fp,geph->svh       );
+	outnavf(fp,geph->pos[0]*1E-3);
+	outnavf(fp,geph->vel[0]*1E-3);
+    outnavf(fp,geph->acc[0]*1E-3);
+    outnavf(fp,geph->svh&1      );
     fprintf(fp,"\n%s",sep      );
     
-    outnavf(fp,geph->pos[1]/1E3);
-    outnavf(fp,geph->vel[1]/1E3);
-    outnavf(fp,geph->acc[1]/1E3);
-    outnavf(fp,geph->frq       );
+	outnavf(fp,geph->pos[1]*1E-3);
+	outnavf(fp,geph->vel[1]*1E-3);
+	outnavf(fp,geph->acc[1]*1E-3);
+	if (geph->navtype==NAV_GLO_FDMA) {
+		outnavf(fp,geph->frq       );
+	} else if (geph->navtype==NAV_GLO_L3OC) {
+		outnavf(fp,(geph->svh>>2)&1);
+	}
     fprintf(fp,"\n%s",sep      );
     
-    outnavf(fp,geph->pos[2]/1E3);
-    outnavf(fp,geph->vel[2]/1E3);
-    outnavf(fp,geph->acc[2]/1E3);
-#if 0 /* input dtaun instead of age */
-    outnavf(fp,geph->dtaun     );
-#else
-	outnavf(fp,geph->age       );
-#endif
-	if (opt->rnxver>=305) { /* ver.3.05 */
+	outnavf(fp,geph->pos[2]*1E-3);
+	outnavf(fp,geph->vel[2]*1E-3);
+	outnavf(fp,geph->acc[2]*1E-3);
+	if (geph->navtype==NAV_GLO_FDMA) {
+		outnavf(fp,geph->age       );
+	} else if (geph->navtype==NAV_GLO_L1OC) {
+		outnavf(fp,geph->tgd[0]); /* TGD L2OCp [s] */
+	} else if (geph->navtype==NAV_GLO_L3OC) {
+		outnavf(fp,geph->tgd[2]); /* ISC L3OCp [s] */
+	}
+
+	if (opt->rnxver>=400) { /* ver.4 */
+		if (geph->navtype==NAV_GLO_FDMA) {
+			fprintf(fp,"\n%s",sep      );
+			/* Line 4 */
+			outnavf(fp,geph->flag      );
+			outnavf(fp,geph->dtaun     );
+			outnavf(fp,geph->sva       );
+			outblank(fp);
+		} else {  /* CDMA */
+			fprintf(fp,"\n%s",sep      );
+			/* Line 4 */
+			outnavf(fp,(geph->flag>>7)&0x3); /* M */
+			outnavf(fp,geph->src     ); /* Re,Rt */
+			outnavf(fp,geph->aode    );
+			outnavf(fp,geph->aodc    );
+			fprintf(fp,"\n%s",sep    );
+
+			/* Line 5 */
+			outnavf(fp,(geph->flag>>4)&0x1); /* P2 */
+			outnavf(fp,geph->tin     ); /* Tin */
+			outnavf(fp,geph->tau1    );
+			outnavf(fp,geph->tau2    );
+			fprintf(fp,"\n%s",sep    );
+
+			/* Line 6 */
+			outnavf(fp,geph->yaw);
+			outnavf(fp,geph->sn      );
+			outnavf(fp,geph->dyaw    );
+			outnavf(fp,geph->dw      );
+			fprintf(fp,"\n%s",sep    );
+
+			/* Line 7 */
+			outnavf(fp,geph->wmax);
+			outnavf(fp,geph->dpos[0] );
+			outnavf(fp,geph->dpos[1] );
+			outnavf(fp,geph->dpos[2] );
+			fprintf(fp,"\n%s",sep    );
+
+			/* Line 8 */
+			outnavf(fp,geph->urai[0]);
+			outnavf(fp,geph->urai[1] );
+			outblank(fp);
+			outnavf(fp,time2gpst(geph->tof,NULL));
+		}
+
+	} else if (opt->rnxver>=305) { /* ver.3.05 FDMA */
 		fprintf(fp,"\n%s",sep      );
-        /* Line 4 */
+		/* Line 4 */
 		outnavf(fp,geph->flag      );
 		outnavf(fp,geph->dtaun     );
 		outnavf(fp,geph->sva       );
+		outblank(fp);
 		/*outnavf(fp,geph->health    ); */
 	}
 

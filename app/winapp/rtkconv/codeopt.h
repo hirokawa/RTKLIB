@@ -103,6 +103,9 @@ __published:
 	TCheckBox *I50;
 	TCheckBox *I51;
 	TCheckBox *I55;
+	TCheckBox *I56;
+	TCheckBox *I57;
+	TCheckBox *I58;
 	TCheckBox *R66;
 	TCheckBox *R67;
 	TCheckBox *R68;
