@@ -35,6 +35,7 @@
 #else
 #define NX          (4+4)       /* # of estimated parameters */
 #endif
+#define NX          (4)       /* # of estimated parameters */
 #define MAXITR      10          /* max number of iteration for point pos */
 #define ERR_ION     5.0         /* ionospheric delay Std (m) */
 #define ERR_TROP    3.0         /* tropspheric delay Std (m) */
@@ -252,7 +253,7 @@ static int rescode(int iter, const obsd_t *obs, int n, const double *rs,
     double r,freq,dion,dtrp,vmeas,vion,vtrp,rr[3],pos[3],dtr,e[3],P;
     int i,j,nv=0,sat,sys,mask[NX-3]={0};
     
-    trace(3,"resprng : n=%d\n",n);
+    trace(3,"rescode : n=%d\n",n);
     
     for (i=0;i<3;i++) rr[i]=x[i];
     dtr=x[3];
@@ -307,14 +308,17 @@ static int rescode(int iter, const obsd_t *obs, int n, const double *rs,
         for (j=0;j<NX;j++) {
             H[j+nv*NX]=j<3?-e[j]:(j==3?1.0:0.0);
         }
-        /* time system offset and receiver bias correction */
-        if      (sys==SYS_GLO) {v[nv]-=x[4]; H[4+nv*NX]=1.0; mask[1]=1;}
-        else if (sys==SYS_GAL) {v[nv]-=x[5]; H[5+nv*NX]=1.0; mask[2]=1;}
-        else if (sys==SYS_CMP) {v[nv]-=x[6]; H[6+nv*NX]=1.0; mask[3]=1;}
-        else if (sys==SYS_IRN) {v[nv]-=x[7]; H[7+nv*NX]=1.0; mask[4]=1;}
-#if 0 /* enable QZS-GPS time offset estimation */
-        else if (sys==SYS_QZS) {v[nv]-=x[8]; H[8+nv*NX]=1.0; mask[5]=1;}
-#endif
+		/* time system offset and receiver bias correction */
+		if (NX>4) {
+			if      (sys==SYS_GLO) {v[nv]-=x[4]; H[4+nv*NX]=1.0; mask[1]=1;}
+			else if (sys==SYS_GAL) {v[nv]-=x[5]; H[5+nv*NX]=1.0; mask[2]=1;}
+			else if (sys==SYS_CMP) {v[nv]-=x[6]; H[6+nv*NX]=1.0; mask[3]=1;}
+			else if (sys==SYS_IRN) {v[nv]-=x[7]; H[7+nv*NX]=1.0; mask[4]=1;}
+	#if 0 /* enable QZS-GPS time offset estimation */
+			else if (sys==SYS_QZS) {v[nv]-=x[8]; H[8+nv*NX]=1.0; mask[5]=1;}
+	#endif
+		}
+
         else mask[0]=1;
         
         vsat[i]=1; resp[i]=v[nv]; (*ns)++;
@@ -406,12 +410,14 @@ static int estpos(const obsd_t *obs, int n, const double *rs, const double *dts,
         if (norm(dx,NX)<1E-4) {
             sol->type=0;
             sol->time=timeadd(obs[0].time,-x[3]/CLIGHT);
-            sol->dtr[0]=x[3]/CLIGHT; /* receiver clock bias (s) */
-            sol->dtr[1]=x[4]/CLIGHT; /* GLO-GPS time offset (s) */
-            sol->dtr[2]=x[5]/CLIGHT; /* GAL-GPS time offset (s) */
-            sol->dtr[3]=x[6]/CLIGHT; /* BDS-GPS time offset (s) */
-            sol->dtr[4]=x[7]/CLIGHT; /* IRN-GPS time offset (s) */
-            for (j=0;j<6;j++) sol->rr[j]=j<3?x[j]:0.0;
+			sol->dtr[0]=x[3]/CLIGHT; /* receiver clock bias (s) */
+			if (NX>4) {
+				sol->dtr[1]=x[4]/CLIGHT; /* GLO-GPS time offset (s) */
+				sol->dtr[2]=x[5]/CLIGHT; /* GAL-GPS time offset (s) */
+				sol->dtr[3]=x[6]/CLIGHT; /* BDS-GPS time offset (s) */
+				sol->dtr[4]=x[7]/CLIGHT; /* IRN-GPS time offset (s) */
+			}
+			for (j=0;j<6;j++) sol->rr[j]=j<3?x[j]:0.0;
             for (j=0;j<3;j++) sol->qr[j]=(float)Q[j+j*NX];
             sol->qr[3]=(float)Q[1];    /* cov xy */
             sol->qr[4]=(float)Q[2+NX]; /* cov yz */
