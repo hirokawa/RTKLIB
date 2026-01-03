@@ -838,7 +838,7 @@ static void zdres_sat(int base, double r, const obsd_t *obs, const nav_t *nav,
                       const prcopt_t *opt, double *y, double *freq)
 {
     double freq1,freq2,C1,C2,dant_if;
-    int i,nf=NF(opt);
+	int i,nf=NF(opt),sys;
     
     if (opt->ionoopt==IONOOPT_IFLC) { /* iono-free linear combination */
         freq1=sat2freq(obs->sat,obs->code[0],nav);
@@ -860,17 +860,16 @@ static void zdres_sat(int base, double r, const obsd_t *obs, const nav_t *nav,
         }
         freq[0]=1.0;
     }
-    else {
-        for (i=0;i<nf;i++) {
-            if ((freq[i]=sat2freq(obs->sat,obs->code[i],nav))==0.0) continue;
-            
-            /* check SNR mask */
-            if (testsnr(base,i,azel[1],obs->SNR[i]*SNR_UNIT,&opt->snrmask)) {
+	else {
+		for (i=0;i<nf;i++) {
+			if ((freq[i]=sat2freq(obs->sat,obs->code[i],nav))==0.0) continue;
+			/* check SNR mask */
+			if (testsnr(base,i,azel[1],obs->SNR[i]*SNR_UNIT,&opt->snrmask)) {
                 continue;
             }
             /* residuals = observable - pseudorange */
-            if (obs->L[i]!=0.0) y[i   ]=obs->L[i]*CLIGHT/freq[i]-r-dant[i];
-            if (obs->P[i]!=0.0) y[i+nf]=obs->P[i]               -r-dant[i];
+			if (obs->L[i]!=0.0) y[i   ]=obs->L[i]*CLIGHT/freq[i]-r-dant[i];
+			if (obs->P[i]!=0.0) y[i+nf]=obs->P[i]               -r-dant[i];
         }
     }
 }

@@ -35,7 +35,6 @@
 #else
 #define NX          (4+4)       /* # of estimated parameters */
 #endif
-#define NX          (4)       /* # of estimated parameters */
 #define MAXITR      10          /* max number of iteration for point pos */
 #define ERR_ION     5.0         /* ionospheric delay Std (m) */
 #define ERR_TROP    3.0         /* tropspheric delay Std (m) */
@@ -309,16 +308,13 @@ static int rescode(int iter, const obsd_t *obs, int n, const double *rs,
             H[j+nv*NX]=j<3?-e[j]:(j==3?1.0:0.0);
         }
 		/* time system offset and receiver bias correction */
-		if (NX>4) {
-			if      (sys==SYS_GLO) {v[nv]-=x[4]; H[4+nv*NX]=1.0; mask[1]=1;}
-			else if (sys==SYS_GAL) {v[nv]-=x[5]; H[5+nv*NX]=1.0; mask[2]=1;}
-			else if (sys==SYS_CMP) {v[nv]-=x[6]; H[6+nv*NX]=1.0; mask[3]=1;}
-			else if (sys==SYS_IRN) {v[nv]-=x[7]; H[7+nv*NX]=1.0; mask[4]=1;}
-	#if 0 /* enable QZS-GPS time offset estimation */
-			else if (sys==SYS_QZS) {v[nv]-=x[8]; H[8+nv*NX]=1.0; mask[5]=1;}
-	#endif
-		}
-
+		if      (sys==SYS_GLO) {v[nv]-=x[4]; H[4+nv*NX]=1.0; mask[1]=1;}
+		else if (sys==SYS_GAL) {v[nv]-=x[5]; H[5+nv*NX]=1.0; mask[2]=1;}
+		else if (sys==SYS_CMP) {v[nv]-=x[6]; H[6+nv*NX]=1.0; mask[3]=1;}
+		else if (sys==SYS_IRN) {v[nv]-=x[7]; H[7+nv*NX]=1.0; mask[4]=1;}
+#if 0 /* enable QZS-GPS time offset estimation */
+		else if (sys==SYS_QZS) {v[nv]-=x[8]; H[8+nv*NX]=1.0; mask[5]=1;}
+#endif
         else mask[0]=1;
         
         vsat[i]=1; resp[i]=v[nv]; (*ns)++;

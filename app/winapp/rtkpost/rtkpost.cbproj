@@ -4,7 +4,7 @@
         <ProjectType>CppVCLApplication</ProjectType>
         <MainSource>rtkpost.cpp</MainSource>
         <Base>True</Base>
-        <Config Condition="'$(Config)'==''">Debug</Config>
+        <Config Condition="'$(Config)'==''">Release</Config>
         <FrameworkType>VCL</FrameworkType>
         <ProjectVersion>20.1</ProjectVersion>
         <Platform Condition="'$(Platform)'==''">Win64</Platform>
@@ -378,12 +378,12 @@
         <FormResources Include="..\appcmn\timedlg.dfm"/>
         <FormResources Include="..\appcmn\viewer.dfm"/>
         <FormResources Include="..\appcmn\vieweropt.dfm"/>
-        <FormResources Include="kmzconv.dfm"/>
+        <FormResources Include="..\appcmn\maskoptdlg.dfm"/>
         <FormResources Include="..\appcmn\aboutdlg.dfm"/>
         <FormResources Include="..\appcmn\confdlg.dfm"/>
         <FormResources Include="..\appcmn\freqdlg.dfm"/>
         <FormResources Include="..\appcmn\keydlg.dfm"/>
-        <FormResources Include="..\appcmn\maskoptdlg.dfm"/>
+        <FormResources Include="kmzconv.dfm"/>
         <FormResources Include="postmain.dfm"/>
         <FormResources Include="postopt.dfm"/>
         <BuildConfiguration Include="Base">

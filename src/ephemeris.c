@@ -109,6 +109,20 @@
 static int eph_sel[]={ /* GPS,GLO,GAL,QZS,BDS,IRN,SBS */
     0,0,0,0,0,0,0
 };
+/* get type of navigation based on navtype */
+static int get_navcode(navtype_t navtype, int sys)
+{
+	switch (sys) {
+		case SYS_GPS: return navtype-NAV_GPS_LNAV;
+		case SYS_SBS: return navtype-NAV_SBS_L1NV;
+		case SYS_GLO: return navtype-NAV_GLO_FDMA;
+		case SYS_GAL: return navtype-NAV_GAL_INAV;
+		case SYS_QZS: return navtype-NAV_QZS_LNAV;
+		case SYS_CMP: return navtype==NAV_CMP_D1?0:navtype-NAV_CMP_D2;
+		case SYS_IRN: return navtype-NAV_IRN_LNAV;
+	}
+    return -1;
+}
 
 /* variance by ura ephemeris -------------------------------------------------*/
 static double var_uraeph(int sys, int ura)
@@ -436,14 +450,13 @@ static eph_t *seleph(gtime_t time, int sat, int iode, const nav_t *nav)
         default: tmax=MAXDTOE+1.0; break;
     }
     tmin=tmax+1.0;
-    
+	sel=getseleph(sys);
+
     for (i=0;i<nav->n;i++) {
         if (nav->eph[i].sat!=sat) continue;
-        if (iode>=0&&nav->eph[i].iode!=iode) continue;
-        if (sys==SYS_GAL) {
-            sel=getseleph(SYS_GAL);
-            if (sel==0&&!(nav->eph[i].code&(1<<9))) continue; /* I/NAV */
-            if (sel==1&&!(nav->eph[i].code&(1<<8))) continue; /* F/NAV */
+		if (iode>=0&&nav->eph[i].iode!=iode) continue;
+		if (get_navcode(nav->eph[i].navtype,sys)!=sel) continue;
+		if (sys==SYS_GAL) {
             if (timediff(nav->eph[i].toe,time)>=0.0) continue; /* AOD<=0 */
         }
         if ((t=fabs(timediff(nav->eph[i].toe,time)))>tmax) continue;
@@ -461,13 +474,15 @@ static eph_t *seleph(gtime_t time, int sat, int iode, const nav_t *nav)
 static geph_t *selgeph(gtime_t time, int sat, int iode, const nav_t *nav)
 {
     double t,tmax=MAXDTOE_GLO,tmin=tmax+1.0;
-    int i,j=-1;
+	int i,j=-1,sel;
     
     trace(4,"selgeph : time=%s sat=%2d iode=%2d\n",time_str(time,3),sat,iode);
-    
+
+	sel=getseleph(SYS_GLO);
     for (i=0;i<nav->ng;i++) {
         if (nav->geph[i].sat!=sat) continue;
-        if (iode>=0&&nav->geph[i].iode!=iode) continue;
+		if (iode>=0&&nav->geph[i].iode!=iode) continue;
+		if (get_navcode(nav->geph[i].navtype,SYS_GLO)!=sel) continue;
         if ((t=fabs(timediff(nav->geph[i].toe,time)))>tmax) continue;
         if (iode>=0) return nav->geph+i;
         if (t<=tmin) {j=i; tmin=t;} /* toe closest to time */
@@ -483,13 +498,14 @@ static geph_t *selgeph(gtime_t time, int sat, int iode, const nav_t *nav)
 static seph_t *selseph(gtime_t time, int sat, const nav_t *nav)
 {
     double t,tmax=MAXDTOE_SBS,tmin=tmax+1.0;
-    int i,j=-1;
-    
-    trace(4,"selseph : time=%s sat=%2d\n",time_str(time,3),sat);
-    
-    for (i=0;i<nav->ns;i++) {
+	int i,j=-1,sel;
+
+	trace(4,"selseph : time=%s sat=%2d\n",time_str(time,3),sat);
+	sel=getseleph(SYS_SBS);
+	for (i=0;i<nav->ns;i++) {
         if (nav->seph[i].sat!=sat) continue;
-        if ((t=fabs(timediff(nav->seph[i].t0,time)))>tmax) continue;
+		if (get_navcode(nav->seph[i].navtype,SYS_SBS)!=sel) continue;
+		if ((t=fabs(timediff(nav->seph[i].t0,time)))>tmax) continue;
         if (t<=tmin) {j=i; tmin=t;} /* toe closest to time */
     }
     if (j<0) {
