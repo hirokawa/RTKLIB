@@ -571,6 +571,8 @@ extern "C" {
 #define SF_OFST_GLO_L2OC	420		/* Offset of raw->subfrm for GLO L2OC */
 #define SF_OFST_GLO_L3OC	40		/* Offset of raw->subfrm for GLO L3OC */
 
+#define MAXGP      32             	/* max grid points for SSR tropospheric model */
+
 #define P2_4        6.250000000000000E-02 /* 2^-4 */
 #define P2_5        3.125000000000000E-02 /* 2^-5 */
 #define P2_6        1.562500000000000E-02 /* 2^-6 */
@@ -976,6 +978,38 @@ typedef struct {        /* ionospheric delay model parameters */
 	double lon[3][2];   /* longitude min/max */
 } ion_t;
 
+typedef struct {        /* SSR tropospheric delay model parameters */
+    gtime_t t0;         /* reference time */
+    int ngp;            /* number of grid points */
+	int gid;            /* grid point index */
+	int zone;           /* global:0, local: 1 */
+	int iod;    	    /* issue of data */
+	int pmi, rmi;       /* SSR tropospheric model indicator
+							pmi: polynomial model indicator
+							rmi: residual model indicator
+						*/
+	double ah, bh, ch;  /* tropospheric hydro-static delay parameters (m) */
+	double aw, bw, cw;  /* tropospheric wet delay parameters (m) */
+	double aht, bht, cht; /* tropospheric hydro-static delay rate parameters (m/s) */
+	double ofsth, ofstw; /* tropospheric hydro-static/wet delay offsets (m) */
+	double geh, gew;    /* tropospheric hydro-static/wet gradient east (m) */
+	double gnh, gnw;    /* tropospheric hydro-static/wet gradient north (m) */
+	double rh[MAXGP], rw[MAXGP];      /* tropospheric hydro-static/wet residuals (m) */
+} trop_t;
+
+typedef struct {
+    int iod;
+	int gid;            /* grid point index */
+	int pmi, rmi;       /* SSR tropospheric model indicator
+							pmi: polynomial model indicator
+							rmi: residual model indicator */
+	int nsat;
+    int sat[MAXSAT];
+	int pgi;            /* polynomial gradient indicator */
+	double c[MAXSAT][3];
+    float stec[MAXGP][MAXSAT];
+} stec_t;
+
 typedef struct {        /* SSR correction type */
     gtime_t t0[6];      /* epoch time (GPST) {eph,clk,hrclk,ura,bias,pbias} */
     double udi[6];      /* SSR update interval (s) */
@@ -988,12 +1022,29 @@ typedef struct {        /* SSR correction type */
     double ddeph[3];    /* dot delta orbit {radial,along,cross} (m/s) */
     double dclk [3];    /* delta clock {c0,c1,c2} (m,m/s,m/s^2) */
     double hrclk;       /* high-rate clock corection (m) */
+    int nsig;           /* number of signals for code bias */
+	int nsigp;          /* number of signals for phase bias */
+	int codetype[MAXCODE]; /* code types */
     float  cbias[MAXCODE]; /* code biases (m) */
-    double pbias[MAXCODE]; /* phase biases (m) */
-    float  stdpb[MAXCODE]; /* std-dev of phase biases (m) */
-    double yaw_ang,yaw_rate; /* yaw angle and yaw rate (deg,deg/s) */
+	double pbias[MAXCODE]; /* phase biases (m) */
+	uint8_t disc[MAXCODE]; /* phase bias discontinuity indicator */
+	uint8_t  sii[MAXCODE]; /* phase bias integer indicator */
+	uint8_t   wl[MAXCODE]; /* phase bias wide-lane indicator */
+	double yaw_ang,yaw_rate; /* yaw angle and yaw rate (deg,deg/s) */
     uint8_t update;     /* update flag (0:no update,1:update) */
 } ssr_t;
+
+typedef struct {        /* RTCM SSR common parameters */
+    int iod;
+	int provid;         /* provider ID */
+	int solid;          /* solution ID */
+	int epid;        	/*  */
+	int iyaw;
+	int nsat;           /* number of satellite */
+	double pos[MAXGP][3];   /* coordinates of grid points */
+	trop_t trop;
+    stec_t stec;
+} ssrprm_t;
 
 typedef struct {        /* navigation data type */
     int n,nmax;         /* number of broadcast ephemeris */
@@ -1020,8 +1071,9 @@ typedef struct {        /* navigation data type */
     pcv_t pcvs[MAXSAT]; /* satellite antenna pcv */
     sbssat_t sbssat;    /* SBAS satellite corrections */
     sbsion_t sbsion[MAXBAND+1]; /* SBAS ionosphere corrections */
-    dgps_t dgps[MAXSAT]; /* DGPS corrections */
+	dgps_t dgps[MAXSAT];/* DGPS corrections */
 	ssr_t ssr[MAXSAT];  /* SSR corrections */
+	ssrprm_t ssrp;      /* SSR parameters */
 } nav_t;
 
 typedef struct {        /* station parameter type */
@@ -1109,13 +1161,15 @@ typedef struct {        /* RTCM control struct type */
     int stah;           /* station health */
     int seqno;          /* sequence number for rtcm 2 or iods msm */
     int outtype;        /* output message type */
+    int subtype;        /* message subtype */
     gtime_t time;       /* message time */
     gtime_t time_s;     /* message start time */
     obs_t obs;          /* observation data (uncorrected) */
     nav_t nav;          /* satellite ephemerides */
     sta_t sta;          /* station parameters */
     dgps_t *dgps;       /* output of dgps corrections */
-    ssr_t ssr[MAXSAT];  /* output of ssr corrections */
+	ssr_t ssr[MAXSAT];  /* output of ssr corrections */
+    ssrprm_t ssrp;      /* parameters for ssr */
     char msg[128];      /* special message */
     char msgtype[256];  /* last message type */
     char msmtype[7][128]; /* msm signal types */
@@ -1132,7 +1186,7 @@ typedef struct {        /* RTCM control struct type */
     uint8_t buff[1200]; /* message buffer */
     uint32_t word;      /* word buffer for rtcm 2 */
     uint32_t nmsg2[100]; /* message count of RTCM 2 (1-99:1-99,0:other) */
-    uint32_t nmsg3[400]; /* message count of RTCM 3 (1-299:1001-1299,300-329:4070-4099,0:ohter) */
+    uint32_t nmsg3[500]; /* message count of RTCM 3 (1-299:1001-1299,300-329:4070-4099,330-450:1-120,0:ohter) */
     char opt[256];      /* RTCM dependent options */
 } rtcm_t;
 
@@ -1753,6 +1807,7 @@ EXPORT uint32_t getbitu(const uint8_t *buff, int pos, int len);
 EXPORT int32_t  getbits(const uint8_t *buff, int pos, int len);
 EXPORT void setbitu(uint8_t *buff, int pos, int len, uint32_t data);
 EXPORT void setbits(uint8_t *buff, int pos, int len, int32_t  data);
+EXPORT int decode_mask(uint8_t *buff, int i, int bitlen, int ofst, int *v);
 EXPORT uint32_t rtk_crc32 (const uint8_t *buff, int len);
 EXPORT uint32_t rtk_crc24q(const uint8_t *buff, int len);
 EXPORT uint16_t rtk_crc16 (const uint8_t *buff, int len);

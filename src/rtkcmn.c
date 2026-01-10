@@ -954,8 +954,24 @@ extern int decode_word(uint32_t word, uint8_t *data)
     for (i=0;i<3;i++) data[i]=(uint8_t)(word>>(22-i*8));
     return 1;
 }
+/* decode n-bit mask with offset
+* args: uint64_t mask, int bit length, int offset
+* return decoded array v, int number of element
+*/
+extern int decode_mask(uint8_t *buff, int i, int bitlen, int ofst, int *v)
+{
+	int k,n=0;
+    uint8_t mask;
+
+	for (k=0;k<bitlen;k++) {
+		mask=getbitu(buff,i,1); i++;
+		if (mask) v[n++]=k+ofst;
+	}
+	return n;
+}
+
 /* new matrix ------------------------------------------------------------------
-* allocate memory of matrix 
+* allocate memory of matrix
 * args   : int    n,m       I   number of rows and columns of matrix
 * return : matrix pointer (if n<=0 or m<=0, return NULL)
 *-----------------------------------------------------------------------------*/

@@ -107,17 +107,17 @@ extern int init_rtcm(rtcm_t *rtcm)
     
     /* reallocate memory for observation and ephemeris buffer */
     if (!(rtcm->obs.data=(obsd_t *)malloc(sizeof(obsd_t)*MAXOBS))||
-        !(rtcm->nav.eph =(eph_t  *)malloc(sizeof(eph_t )*MAXSAT*2))||
-        !(rtcm->nav.geph=(geph_t *)malloc(sizeof(geph_t)*MAXPRNGLO))) {
+		!(rtcm->nav.eph =(eph_t  *)malloc(sizeof(eph_t )*MAXSAT*4))||
+		!(rtcm->nav.geph=(geph_t *)malloc(sizeof(geph_t)*NSATGLO*4))) {
         free_rtcm(rtcm);
         return 0;
     }
     rtcm->obs.n=0;
-    rtcm->nav.n=MAXSAT*2;
-    rtcm->nav.ng=MAXPRNGLO;
+	rtcm->nav.n=MAXSAT*2;
+    rtcm->nav.ng=NSATGLO;
     for (i=0;i<MAXOBS   ;i++) rtcm->obs.data[i]=data0;
-    for (i=0;i<MAXSAT*2 ;i++) rtcm->nav.eph [i]=eph0;
-    for (i=0;i<MAXPRNGLO;i++) rtcm->nav.geph[i]=geph0;
+	for (i=0;i<MAXSAT*4 ;i++) rtcm->nav.eph [i]=eph0;
+    for (i=0;i<NSATGLO*4;i++) rtcm->nav.geph[i]=geph0;
     return 1;
 }
 /* free rtcm control ----------------------------------------------------------
@@ -224,7 +224,7 @@ extern int input_rtcm2(rtcm_t *rtcm, uint8_t data)
 *              FULL L1L2: 1004    1012      -       -       -       -       -
 *
 *          NAV          : 1019    1020    1045**  1044    1042      -     1041
-*                           -       -     1046**    -       63*     -       -
+*                           -       -     1046**    -       -       -       -
 *
 *          MSM 1        : 1071~   1081~   1091~   1111~   1121~   1101~   1131~
 *              2        : 1072~   1082~   1092~   1112~   1122~   1102~   1132~
@@ -244,7 +244,9 @@ extern int input_rtcm2(rtcm_t *rtcm, uint8_t data)
 *
 *          ANT/RCV INFO : 1007    1008    1033
 *          STA POSITION : 1005    1006
+*          GLO Biases   :         1230
 *
+*          PROPRIETARY  : 4073 (Mitsubishi Electric)
 *          PROPRIETARY  : 4076 (IGS)
 *         ----------------------------------------------------------------------
 *                            (* draft, ** 1045:F/NAV,1046:I/NAV, ~ only encode)

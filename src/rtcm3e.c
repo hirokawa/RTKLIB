@@ -1788,17 +1788,16 @@ static int encode_ssr7(rtcm_t *rtcm, int sys, int subtype, int sync)
     const int *codes;
     double udint=0.0;
     int i,j,k,iod=0,nsat,prn,nbias,np,offp;
-    int code[MAXCODE],pbias[MAXCODE],stdpb[MAXCODE],yaw_ang,yaw_rate;
+    int code[MAXCODE],pbias[MAXCODE],yaw_ang,yaw_rate;
     
     trace(3,"encode_ssr7: sys=%d subtype=%d sync=%d\n",sys,subtype,sync);
     
     switch (sys) {
         case SYS_GPS: np=6; offp=  0; codes=codes_gps; break;
-        case SYS_GLO: np=5; offp=  0; codes=codes_glo; break;
+        case SYS_GLO: np=6; offp=  0; codes=codes_glo; break;
         case SYS_GAL: np=6; offp=  0; codes=codes_gal; break;
-        case SYS_QZS: np=4; offp=192; codes=codes_qzs; break;
-        case SYS_CMP: np=6; offp=  1; codes=codes_bds; break;
-        case SYS_SBS: np=6; offp=120; codes=codes_sbs; break;
+		case SYS_QZS: np=4; offp=192; codes=codes_qzs; break;
+		case SYS_CMP: np=6; offp=  0; codes=codes_bds; break;
         default: return 0;
     }
     if (subtype>0) { /* IGS SSR */
@@ -1823,12 +1822,11 @@ static int encode_ssr7(rtcm_t *rtcm, int sys, int subtype, int sync)
             if (!codes[k]||rtcm->ssr[j].pbias[codes[k]-1]==0.0) continue;
             code[nbias]=k;
             pbias[nbias  ]=ROUND(rtcm->ssr[j].pbias[codes[k]-1]/0.0001);
-            stdpb[nbias++]=ROUND(rtcm->ssr[j].stdpb[codes[k]-1]/0.0001);
         }
         yaw_ang =ROUND(rtcm->ssr[j].yaw_ang /180.0* 256.0);
         yaw_rate=ROUND(rtcm->ssr[j].yaw_rate/180.0*8192.0);
         setbitu(rtcm->buff,i,np,prn-offp); i+=np; /* satellite ID */
-        setbitu(rtcm->buff,i, 5,nbias);    i+= 5; /* number of code biases */
+        setbitu(rtcm->buff,i, 5,nbias);    i+= 5; /* number of phase biases */
         setbitu(rtcm->buff,i, 9,yaw_ang);  i+= 9; /* yaw angle */
         setbits(rtcm->buff,i, 8,yaw_rate); i+= 8; /* yaw rate */
         
@@ -1838,9 +1836,6 @@ static int encode_ssr7(rtcm_t *rtcm, int sys, int subtype, int sync)
             setbitu(rtcm->buff,i, 2,0       ); i+= 2; /* WL integer-indicator */
             setbitu(rtcm->buff,i, 4,0       ); i+= 4; /* discont counter */
             setbits(rtcm->buff,i,20,pbias[k]); i+=20; /* phase bias */
-            if (subtype==0) {
-                setbits(rtcm->buff,i,17,stdpb[k]); i+=17; /* std-dev ph-bias */
-            }
         }
     }
     rtcm->nbit=i;
