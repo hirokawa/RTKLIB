@@ -984,7 +984,7 @@ static uint8_t *decode_bnx_7f_05_obs(raw_t *raw, uint8_t *buff, int sat,
             freq=code2freq(sys,codes[code[k]],fcn);
             data->P[i]=range[k];
             data->L[i]=phase[k]*freq/CLIGHT;
-            data->D[i]=dopp[k];
+            data->D[i]=(float)dopp[k];
             data->SNR[i]=(uint16_t)(cnr[k]/SNR_UNIT+0.5);
             data->code[i]=codes[code[k]];
             data->LLI[i]=slip[k]?1:0;
@@ -1005,7 +1005,7 @@ static uint8_t *decode_bnx_7f_05_obs(raw_t *raw, uint8_t *buff, int sat,
             freq=code2freq(sys,codes[code[k]],fcn);
             data->P[i]=range[k];
             data->L[i]=phase[k]*freq/CLIGHT;
-            data->D[i]=dopp[k];
+            data->D[i]=(float)dopp[k];
             data->SNR[i]=(uint16_t)(cnr[k]/SNR_UNIT+0.5);
             data->code[i]=codes[code[k]];
             data->LLI[i]=slip[k]?1:0;
@@ -1038,7 +1038,7 @@ static int decode_bnx_7f_05(raw_t *raw, uint8_t *buff, int len)
         nsys=getbitu(p,0,4);
         rsys=getbitu(p,4,4); p++;
         for (i=0;i<nsys;i++) {
-            toff[i]=getbits(p,0,24)*1E-9;
+            toff[i]=(float)(getbits(p,0,24)*1E-9);
             tsys[i]=getbitu(p,28,4); p+=4;
         }
     }

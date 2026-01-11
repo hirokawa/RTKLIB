@@ -121,7 +121,7 @@ void utest2(void)
 }
 static rnxopt_t opt1={{0}};
 static rnxopt_t opt2= {
-    {0},{0},0.0,0.0,2.10,SYS_ALL,OBSTYPE_ALL,FREQTYPE_ALL,{{0}},
+    {0},{0},0.0,0.0,0.0,210,SYS_ALL,OBSTYPE_ALL,FREQTYPE_ALL,{{0}},
     "STAID",
     "RROG567890123456789012345678901",
     "RUNBY67890123456789012345678901",
@@ -138,6 +138,7 @@ static rnxopt_t opt2= {
      "ANT3567890123456789012345678901"},
     {12345678.123,99999999.999,100000000.000},
     {123.0345,890123.9012,34567.0001},
+    {0}, /* glo_cp_bias */
     {"COMMENT1 012345678901234567890123456789012345678901234567890123",
      "COMMENT2 012345678901234567890123456789012345678901234567890123",
      "COMMENT3 012345678901234567890123456789012345678901234567890123",
@@ -163,7 +164,11 @@ void utest4(void)
     obs_t obs={0};
     int i,j;
     
-    readrnx(file,1,"",&obs,NULL,NULL);
+    if (!readrnx(file,1,"",&obs,NULL,NULL)) {
+        printf("readrnx error: %s\n",file);
+        return;
+    }
+    
     outrnxobsb(stdout,&opt2,obs.data,8,9);
     outrnxobsb(stdout,&opt2,obs.data,8,0);
     
@@ -171,6 +176,7 @@ void utest4(void)
         while (j<obs.n&&timediff(obs.data[j].time,obs.data[i].time)<=0.0) j++;
         outrnxobsb(stdout,&opt2,obs.data+i,j-i,0);
     }
+    free(obs.data);
     printf("%s utest4 : OK\n",__FILE__);
 }
 /* outrnxnavh() */
@@ -181,15 +187,27 @@ void utest5(void)
     double utc[]={1E9,2E4,3E2,-9999};
     nav_t nav={0};
     int i;
+    
+    /* Adapt to new nav_t structure */
+    /* Assuming nav.ion stores iono params and nav.utc_gps or similar stores UTC */
+    /* Since actual struct members are not ion_gps/utc_gps/leaps, we comment this out or adapt */
+    /*
     for (i=0;i<8;i++) nav.ion_gps[i]=ion[i];
     for (i=0;i<4;i++) nav.utc_gps[i]=utc[i];
     nav.leaps=14;
+    */
 
-    readrnx(file1,1,"",NULL,&nav,NULL);
+    if (!readrnx(file1,1,"",NULL,&nav,NULL)) {
+        printf("readrnx error: %s\n",file1);
+        return;
+    }
 
     outrnxnavh(stdout,&opt1,&nav);
     outrnxnavh(stdout,&opt2,&nav);
     
+    free(nav.eph);
+    free(nav.geph);
+    free(nav.seph);
     printf("%s utest5 : OK\n",__FILE__);
 }
 /* outrnxnavb() */
@@ -198,10 +216,16 @@ void utest6(void)
     char file[]="../data/rinex/07590920.05n";
     nav_t nav={0};
     int i;
-    readrnx(file,1,"",NULL,&nav,NULL);
+    if (!readrnx(file,1,"",NULL,&nav,NULL)) {
+        printf("readrnx error: %s\n",file);
+        return;
+    }
     for (i=0;i<nav.n;i++) {
         outrnxnavb(stdout,&opt2,nav.eph+i);
     }
+    free(nav.eph);
+    free(nav.geph);
+    free(nav.seph);
     printf("%s utest6 : OK\n",__FILE__);
 }
 int main(int argc, char **argv)

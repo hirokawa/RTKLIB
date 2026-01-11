@@ -259,7 +259,7 @@ static int decode_measepoch(raw_t *raw)
             P1=(U1(p+3)&0x0f)*4294967.296+U4(p+4)*0.001;
             raw->obs.data[n].P[idx]=P1;
         }
-        if (I4(p+8)!=-2147483648) {
+        if (I4(p+8)!=(int)0x80000000) {
             D1=I4(p+8)*0.0001;
             raw->obs.data[n].D[idx]=(float)D1;
         }
@@ -308,7 +308,7 @@ static int decode_measepoch(raw_t *raw)
             if (D1!=0.0&&freq1>0.0&&freq2>0.0&&
                 (getbits(p+3,0,5)!=-16||U2(p+10)!=0)) {
                 D2=getbits(p+3,0,5)*6.5536+U2(p+10)*0.0001;
-                raw->obs.data[n].D[idx]=(float)(D1*freq2/freq1)+D2;
+                raw->obs.data[n].D[idx]=(float)((D1*freq2/freq1)+D2);
             }
             lock=U1(p+1);
             if (lock!=255) {
@@ -772,7 +772,7 @@ static int decode_bdsrawcnav1(raw_t *raw)
     eph_t eph={0};
     double ion[8]={0},utc[8]={0},eop[7]={0};
     uint8_t *p=raw->buff+14,buff[228];
-    int i,id,svid,sat,prn,pgn;
+    int i,id,svid,sat,prn;
 
     if (raw->len<248) {
 		trace(2,"sbf bdsrawcnav1 length error: len=%d\n",raw->len);
@@ -826,7 +826,7 @@ static int decode_bdsrawcnav2(raw_t *raw)
 	eph_t eph={0};
 	double ion[8]={0},utc[8]={0},eop[7]={0};
 	uint8_t *p=raw->buff+14,buff[72];
-	int i,id,svid,sat,prn,pgn,ofst;
+	int i,id,svid,sat,prn,ofst;
 
 	if (raw->len<92) {
 		trace(2,"sbf bdsrawcnav2 length error: len=%d\n",raw->len);
@@ -896,8 +896,7 @@ static int decode_bdsrawcnav3(raw_t *raw)
 	eph_t eph={0};
 	double ion[8]={0},utc[8]={0},eop[7]={0};
 	uint8_t *p=raw->buff+14,buff[124];
-	uint32_t tmp;
-	int i,id,svid,sat,prn,pgn,ofst;
+	int i,id,svid,sat,prn,ofst;
 
 	if (raw->len<144) {
 		trace(2,"sbf bdsrawcnav3 length error: len=%d\n",raw->len);
@@ -971,8 +970,7 @@ static int decode_gpsrawcnav(raw_t *raw, int sys)
 {
     uint8_t *p=(raw->buff)+14;
 	int i,prn,sat,id,ofst=-1;
-	uint8_t viterbi_cnt,src,ch,buff[40];
-	uint32_t tmp;
+	uint8_t buff[40];
 	eph_t eph={0};
 	double ion[4]={0},utc[8]={0},eop[7]={0};
 
@@ -1043,10 +1041,8 @@ static int decode_gpsrawcnav2(raw_t *raw, int sys)
 {
 	uint8_t *p=(raw->buff)+8;
 	int i,prn,sat,id;
-	uint8_t viterbi_cnt,src,ch,crc[2],svid;
 	uint8_t buff[228];
 	uint16_t week;
-	uint32_t tmp;
 	double tow;
 	double ion[4]={0},utc[8]={0},eop[7]={0};
     eph_t eph={0};
@@ -1236,7 +1232,7 @@ static int decode_navicrawl1(raw_t *raw)
     eph_t eph={0};
     double ion[8]={0},utc[8]={0},eop[7]={0};
     uint8_t *p=raw->buff+14,buff[228];
-    int i,id,svid,sat,prn,pgn;
+    int i,id,svid,sat,prn;
 
     if (raw->len<248) {
 		trace(2,"sbf navicrawl1 length error: len=%d\n",raw->len);

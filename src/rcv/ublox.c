@@ -743,7 +743,6 @@ static int decode_ionutc(raw_t *raw, int sat)
 {
     double ion[8],utc[8];
 	int sys=satsys(sat,NULL),navtype;
-	sto_t *sto;
 	
 	if (!decode_gps_lnav(raw->subfrm[sat-1],NULL,NULL,ion,utc,sys)) return 0;
 	

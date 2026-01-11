@@ -38,6 +38,7 @@
 #include <time.h>
 #include <ctype.h>
 #include <stdint.h>
+#include "cssr.h"
 #ifdef WIN32
 #include <winsock2.h>
 #include <windows.h>
@@ -403,6 +404,8 @@ extern "C" {
 #define PMODE_PPP_KINEMA 6              /* positioning mode: PPP-kinemaric */
 #define PMODE_PPP_STATIC 7              /* positioning mode: PPP-static */
 #define PMODE_PPP_FIXED 8               /* positioning mode: PPP-fixed */
+#define PMODE_PPPRTK_FIXED 9            /* positioning mode: PPPRTK-fixed */
+#define PMODE_PPPRTK_STATIC 10          /* positioning mode: PPPRTK-static */
 
 #define SOLF_LLH    0                   /* solution format: lat/lon/height */
 #define SOLF_XYZ    1                   /* solution format: x/y/z-ecef */
@@ -433,6 +436,7 @@ extern "C" {
 #define IONOOPT_TEC 5                   /* ionosphere option: IONEX TEC model */
 #define IONOOPT_QZS 6                   /* ionosphere option: QZSS broadcast model */
 #define IONOOPT_STEC 8                  /* ionosphere option: SLANT TEC model */
+#define IONOOPT_EST_ADPT 9              /* ionosphere option: adaptive estimation */
 
 #define TROPOPT_OFF 0                   /* troposphere option: correction off */
 #define TROPOPT_SAAS 1                  /* troposphere option: Saastamoinen model */
@@ -1142,13 +1146,13 @@ typedef struct {        /* solution status buffer type */
     solstat_t *data;    /* solution status data */
 } solstatbuf_t;
 
-typedef struct { /* QZSS L6 message type */
+typedef struct {        /* QZSS L6 message type */
     int prn;            /* satellite PRN number */
     int type;           /* message type */
     int alert;          /* alert flag */
-    uint8_t stat; /* signal tracking status */
-    uint8_t snr;  /* signal C/N0 (0.25 dBHz) */
-    uint32_t ttt;   /* tracking time (ms) */
+    uint8_t stat;       /* signal tracking status */
+    uint8_t snr;        /* signal C/N0 (0.25 dBHz) */
+    uint32_t ttt;       /* tracking time (ms) */
     uint8_t vendor_id;
     uint8_t facility_id;
     uint8_t subframe_length;
@@ -1170,6 +1174,7 @@ typedef struct {        /* RTCM control struct type */
     dgps_t *dgps;       /* output of dgps corrections */
 	ssr_t ssr[MAXSAT];  /* output of ssr corrections */
     ssrprm_t ssrp;      /* parameters for ssr */
+    cssr_t cssr;        /* compact ssr */
     char msg[128];      /* special message */
     char msgtype[256];  /* last message type */
     char msmtype[7][128]; /* msm signal types */
@@ -1420,7 +1425,11 @@ typedef struct {        /* receiver raw data control type */
     int ephset;         /* update set of ephemeris (0-1) */
     sbsmsg_t sbsmsg;    /* SBAS message */
 	char msgtype[256];  /* last message type */
+#if NSATQZS > 0
 	l6msg_t l6msg[NSATQZS*2];  /* QZSS L6 message */
+#else
+    l6msg_t l6msg[1];
+#endif
     uint8_t subfrm[MAXSAT][610]; /* subframe buffer */
     double lockt[MAXSAT][NFREQ+NEXOBS]; /* lock time (s) */
     double icpp[MAXSAT],off[MAXSAT],icpc; /* carrier params for ss2 */

@@ -223,7 +223,7 @@ void utest8(void)
     t1=epoch2time(ep1);
     while (t0.time<t1.time) {
         t2=utc2gpst(t0); t3=gpst2utc(t2); assert(t0.time==t3.time&&t0.sec==t3.sec);
-        t0.time+=86400.0;
+        t0.time+=(time_t)86400.0;
     }
     
     printf("%s utset8 : OK\n",__FILE__);
@@ -268,7 +268,7 @@ void utest10(void)
 {
     char s1[64],s2[64];
     gtime_t time1,time2;
-    int i;
+    int i,j;
     time1=timeget();
     for (i=0;i<2000000000;i++) j=1;
     time2=timeget();

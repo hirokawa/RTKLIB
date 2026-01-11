@@ -119,7 +119,7 @@ static int64_t getbits_64(const uint8_t *buff, int pos, int len)
 /* get sign-magnitude bits ---------------------------------------------------*/
 static double getbitg_64(const uint8_t *buff, int pos, int len)
 {
-	double value=getbitu_64(buff,pos+1,len-1);
+	double value=(double)getbitu_64(buff,pos+1,len-1);
 	return getbitu(buff,pos,1)?-value:value;
 }
 
@@ -317,8 +317,8 @@ extern int decode_irn_nav(const uint8_t *buff, eph_t *eph, double *ion,
 static int decode_irn_l1_eph(const uint8_t *buff, eph_t *eph, int mode)
 {
 	eph_t eph_irn={0};
-	double tow,toc,dA;
-	int i,toi,week,itow,alrt,ivld,isf,page;
+	double tow,dA;
+	int i,toi,alrt,ivld,page;
 	int ofst1=0,ofst2=(mode==1)?32:52,ofst3=(mode==1)?640:1252;
 
 	/*
@@ -1310,11 +1310,10 @@ static int decode_bds_cnav_sisa(const uint8_t *buff, int i, eph_t *eph)
 extern int decode_bds_cnav1(const uint8_t *buff, eph_t *eph, double *ion,
 	double *utc, double *eop, int mode)
 {
-    double tow,toas;
+    double tow=0,toas;
     int i=0,soh,ofst1=(mode==1)?872:0,ofst2=(mode==1)?0:72,ofst3=(mode==1)?608:1272;
     int page=0;
     uint16_t week_a;
-    alm_t alm;
 
 	page  =getbitu(buff,ofst3,6);
     soh = getbitu(buff,ofst1,8)*18; /* seconds of hour */
@@ -1417,9 +1416,9 @@ extern int decode_bds_cnav1(const uint8_t *buff, eph_t *eph, double *ion,
 extern int decode_bds_cnav2(const uint8_t *buff, eph_t *eph, double *ion,
 	double *utc, double *eop, int mode)
 {
-    int i=0,mt1,mt2,mt3,mt4,sat,week_a;
+    int i=0,mt1,mt2,mt3,mt4,sat;
     uint8_t prn;
-    double toas,tow;
+    double tow;
 
     prn = getbitu(buff,0,6);
     sat = satno(SYS_CMP,prn);
@@ -1646,7 +1645,7 @@ static int decode_glostr_eph(const uint8_t *buff, geph_t *geph)
 {
     geph_t geph_glo={0};
     double tow,tod,tof,toe;
-    int P,P1,P2,P3,P4,tk_h,tk_m,tk_s,tb,ln,NT,slot,M,week,FT;
+    int P,P1,P2,P3,P4,tk_h,tk_m,tk_s,tb,ln,NT,slot,M,week;
     int i=1,frn1,frn2,frn3,frn4;
     
     trace(4,"decode_glostr_eph:\n");
@@ -1788,8 +1787,7 @@ static int decode_glo_cdma_head(const uint8_t *buff, int i, int *slot,
 static int decode_glo_cdma_eph(const uint8_t *buff, geph_t *geph, int stype)
 {
     geph_t geph_glo={0};
-    double tow,tod,tof,toe,tin;
-	int P1,P2,tb,ln,NT,H,N4,PS,Re,Rt,slot,M,week,FT,ofst1,ofst2;
+	int P1,P2,tb,ln,NT,H,N4,PS,Re,Rt,slot,M,ofst1,ofst2;
 	int i=1,k,frn[4],ts[4],tscl;
 	const navtype_t nav_t[3]={NAV_GLO_L1OC,NAV_GLO_L2OC,NAV_GLO_L3OC};
 
@@ -1946,7 +1944,7 @@ static int decode_glo_cdma_utc(const uint8_t *buff, double *utc, int stype)
 /* decode GLONASS CDMA Ionosphere parameters ----------------------------------------*/
 static int decode_glo_cdma_ion(const uint8_t *buff, double *ion, int stype)
 {
-	int i,Nb,sz1,ofst1;
+	int i,sz1,ofst1;
 
 	if (stype==0) {
 		sz1=12;ofst1=38+118;
@@ -2359,7 +2357,7 @@ static int decode_gps_malm(const uint8_t *buff, int i, int sys, alm_t *alm,
 static int decode_gps_cnav_eph(const uint8_t *buff, eph_t *eph, int sys)
 {
     int i,week_op;
-    uint8_t id1,id2,id3,integ,l2cphase,s1,s2,s3;
+    uint8_t id1,id2,id3,l2cphase,s1,s2,s3;
     double tow1,tow2,tow3,top,toe,toc;
     double dA;
     eph_t eph_sat;
@@ -2690,7 +2688,7 @@ static int decode_gps_cnav2_ion(const uint8_t *buff, double *ion, int mode)
 /* decode GPS/QZS CNAV2 UTC */
 static int decode_gps_cnav2_utc(const uint8_t *buff, double *utc, int mode)
 {
-	int i=(mode==1)?609:1252,prn,page,leaps;
+	int i=(mode==1)?609:1252,prn,page;
 
     prn =getbitu(buff,i, 8); i+= 8;
     page = getbitu(buff,i, 6); i+= 6;
@@ -2713,7 +2711,7 @@ static int decode_gps_cnav2_utc(const uint8_t *buff, double *utc, int mode)
 /* decode GPS/QZS CNAV2 EOP parameters -- ------------------------------------*/
 static int decode_gps_cnav2_eop(const uint8_t *buff, double *eop, int mode)
 {
-	int i=(mode==1)?609:1252,prn,page,leaps;
+	int i=(mode==1)?609:1252,prn,page;
 
     prn =getbitu(buff,i, 8); i+= 8;
     page = getbitu(buff,i, 6); i+= 6+68;
@@ -3031,17 +3029,17 @@ extern void set_utc_param(raw_t *raw, int sat, navtype_t navtype, double *utc)
 	}
 
 	if (sys==SYS_IRN) {
-		sto->t0=gst2time(utc[3],utc[2]);
-		sto->tlsf=gst2time(utc[5],utc[6]*86400.0);
+		sto->t0=gst2time((int)utc[3],utc[2]);
+		sto->tlsf=gst2time((int)utc[5],utc[6]*86400.0);
 	} else if (sys==SYS_CMP) {
-		sto->t0=bdt2time(utc[3],utc[2]);
-		sto->tlsf=bdt2time(utc[5],utc[6]*86400.0);
+		sto->t0=bdt2time((int)utc[3],utc[2]);
+		sto->tlsf=bdt2time((int)utc[5],utc[6]*86400.0);
 	} else {
-		sto->t0=gpst2time(utc[3],utc[2]);
-		sto->tlsf=gpst2time(utc[5],utc[6]*86400.0);
+		sto->t0=gpst2time((int)utc[3],utc[2]);
+		sto->tlsf=gpst2time((int)utc[5],utc[6]*86400.0);
     }
-	sto->dt_ls=utc[4];
-	sto->dt_lsf=utc[7];
+	sto->dt_ls=(int)utc[4];
+	sto->dt_lsf=(int)utc[7];
 }
 /* set EOP parameters */
 extern void set_eop_param(raw_t *raw, int sat, navtype_t navtype, double *eop)

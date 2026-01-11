@@ -165,18 +165,8 @@ static void raw2rtcm(rtcm_t *out, const raw_t *raw, int ret)
         out->sta=raw->sta;
     }
     else if (ret==9) {
-        matcpy(out->nav.utc_gps,raw->nav.utc_gps,8,1);
-        matcpy(out->nav.utc_glo,raw->nav.utc_glo,8,1);
-        matcpy(out->nav.utc_gal,raw->nav.utc_gal,8,1);
-        matcpy(out->nav.utc_qzs,raw->nav.utc_qzs,8,1);
-        matcpy(out->nav.utc_cmp,raw->nav.utc_cmp,8,1);
-        matcpy(out->nav.utc_irn,raw->nav.utc_irn,9,1);
-        matcpy(out->nav.utc_sbs,raw->nav.utc_sbs,4,1);
-        matcpy(out->nav.ion_gps,raw->nav.ion_gps,8,1);
-        matcpy(out->nav.ion_gal,raw->nav.ion_gal,4,1);
-        matcpy(out->nav.ion_qzs,raw->nav.ion_qzs,8,1);
-        matcpy(out->nav.ion_cmp,raw->nav.ion_cmp,8,1);
-        matcpy(out->nav.ion_irn,raw->nav.ion_irn,8,1);
+        for (i=0;i<NTSYS;i++) out->nav.sto[i]=raw->nav.sto[i];
+        for (i=0;i<NION ;i++) out->nav.ion[i]=raw->nav.ion[i];
     }
 }
 /* copy received data from receiver rtcm to rtcm -----------------------------*/

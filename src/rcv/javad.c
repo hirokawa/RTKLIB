@@ -18,6 +18,8 @@
 *         Reflects Firmware Version 3.6.7, August 25, 2016
 *     [7] Javad GNSS, GREIS GNSS Receiver External Interface Specification,
 *         Reflects Firmware Version 3.7.2, October 11, 2017
+*     [8] Javad GNSS, GREIS GNSS Receiver External Interface Specification,
+*         Reflects Firmware Version 4.6.00, June 10, 2025
 *
 * version : $Revision:$ $Date:$
 * history : 2011/05/27 1.0  new
@@ -1203,7 +1205,7 @@ static int decode_ud(raw_t *raw)
     geph_t geph={0};
     uint8_t *p=raw->buff+5,buff[40]={0};
     char *msg;
-	int i,sat,prn,frq,time,type,len,id,j,ts,s,ofst;
+	int i,sat,prn,frq=0,time,type,len,id,s,ofst;
 	double ion[8]={0},utc[7]={0},eop[8]={0};
 
     if (!checksum(raw->buff,raw->len)) {
@@ -1396,11 +1398,9 @@ static int decode_ED(raw_t *raw)
 /* decode [cd] Beidou raw navigation data ------------------------------------*/
 static int decode_cd(raw_t *raw)
 {
-    uint8_t *p=raw->buff+5;
-    static uint8_t subfrm[128];
+    uint8_t *p=raw->buff+5,subfrm[228]={0};
     char *msg;
     int i,sat,prn,tow,type,len,otype=0,b2bq=0,signal,id,page;
-    uint32_t tmp;
     static eph_t eph={0};
     double ion[9]={0},utc[9]={0},eop[7]={0};
 
@@ -1589,7 +1589,7 @@ static int decode_cd(raw_t *raw)
 /* decode [id] IRNSS raw navigation data -------------------------------------*/
 static int decode_id(raw_t *raw)
 {
-	int i,prn,time,type,len,sat,id,tow,stat;
+	int i,prn,time,type,len,sat,id,tow;
 	char *msg;
 	uint8_t *p=raw->buff+5;
 	static uint8_t subfrm[120];
