@@ -589,9 +589,10 @@ extern int sbsreadmsg(const char *file, int sel, sbs_t *sbs)
 *          sbsmsg_t *sbsmsg I   sbas messages
 * return : none
 *-----------------------------------------------------------------------------*/
-extern void sbsoutmsg(FILE *fp, sbsmsg_t *sbsmsg)
+extern void sbsoutmsg(FILE *fp, rnxopt_t *opt, raw_t *raw)
 {
-    int i,prn=sbsmsg->prn,type=sbsmsg->msg[1]>>2;
+    sbsmsg_t *sbsmsg=&raw->sbsmsg;
+	int i,prn=sbsmsg->prn,type=sbsmsg->msg[1]>>2;
     
     trace(4,"sbsoutmsg:\n");
     

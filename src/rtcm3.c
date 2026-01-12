@@ -1877,7 +1877,7 @@ static int decode_ssr7(rtcm_t *rtcm, int sys, int subtype)
 		}
 		trace(4,"decode_ssr7: prn=%3d %s\n",prn,str);
     }
-    return 20;
+    return sync?0:10;
 }
 /* decode SSR Extended Satellite Phase Bias Property Message --------*/
 static int decode_ssrpe(rtcm_t *rtcm, int sys, int subtype)
@@ -2081,7 +2081,7 @@ static int decode_ssr_grid(rtcm_t *rtcm)
 		sprintf(rtcm->msgtype+strlen(rtcm->msgtype)," type=%d",type);
 	}
 	trace(3,"decode_ssr_grid");
-	return 0;
+    return sync?0:10;
 }
 /* decode SSR: trop --------------------------------------------------*/
 static int decode_ssr_trop(rtcm_t *rtcm)
@@ -2147,7 +2147,7 @@ static int decode_ssr_trop(rtcm_t *rtcm)
 		}
 	}
 
-    return 20;
+    return sync?0:10;
 }
 /* decode SSR: iono ------------------- -------------------------------*/
 static int decode_ssr_iono(rtcm_t *rtcm, int sys, int subtype)
@@ -2206,7 +2206,7 @@ static int decode_ssr_iono(rtcm_t *rtcm, int sys, int subtype)
 			trace(4,"decode_ssr_iono %2d %s\n",j+1,str);
 		}
 	}
-	return 20;
+    return sync?0:10;
 }
 /* get signal index ----------------------------------------------------------*/
 static void sigindex(int sys, const uint8_t *code, int n, const char *opt,

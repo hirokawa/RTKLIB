@@ -111,6 +111,18 @@ __published:
 	TPanel *Panel5;
 	TPanel *Panel6;
 	TPanel *Panel7;
+	TCheckBox *OutFileEna10;
+	TCheckBox *OutFileEna11;
+	TCheckBox *OutFileEna12;
+	TEdit *OutFile10;
+	TEdit *OutFile11;
+	TEdit *OutFile12;
+	TSpeedButton *BtnOutFileView10;
+	TSpeedButton *BtnOutFileView11;
+	TSpeedButton *BtnOutFileView12;
+	TButton *BtnOutFile10;
+	TButton *BtnOutFile11;
+	TButton *BtnOutFile12;
 	
 	void __fastcall FormCreate          (TObject *Sender);
 	void __fastcall FormShow            (TObject *Sender);
@@ -159,8 +171,14 @@ __published:
 	void __fastcall TimeH2KeyDown(TObject *Sender, WORD &Key, TShiftState Shift);
 	void __fastcall BtnOutFile8Click(TObject *Sender);
 	void __fastcall BtnOutFile9Click(TObject *Sender);
+	void __fastcall BtnOutFile10Click(TObject *Sender);
+	void __fastcall BtnOutFile11Click(TObject *Sender);
+	void __fastcall BtnOutFile12Click(TObject *Sender);
 	void __fastcall BtnOutFileView8Click(TObject *Sender);
 	void __fastcall BtnOutFileView9Click(TObject *Sender);
+	void __fastcall BtnOutFileView10Click(TObject *Sender);
+	void __fastcall BtnOutFileView11Click(TObject *Sender);
+	void __fastcall BtnOutFileView12Click(TObject *Sender);
 	void __fastcall TimeY1UDChangingEx(TObject *Sender, bool &AllowChange, int NewValue,
           TUpDownDirection Direction);
 	void __fastcall TimeH1UDChangingEx(TObject *Sender, bool &AllowChange, int NewValue,

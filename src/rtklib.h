@@ -575,6 +575,16 @@ extern "C" {
 #define SF_OFST_GLO_L2OC	420		/* Offset of raw->subfrm for GLO L2OC */
 #define SF_OFST_GLO_L3OC	40		/* Offset of raw->subfrm for GLO L3OC */
 
+#define SSR_NONE    0
+#define SSR_RTCM    1
+#define SSR_CLAS    2
+#define SSR_MADOCA  3
+#define SSR_HAS     4
+#define SSR_BDS     5
+#define SSR_GLO     6
+#define SSR_PVS     7
+#define SSR_POINT   8
+
 #define MAXGP      32             	/* max grid points for SSR tropospheric model */
 
 #define P2_4        6.250000000000000E-02 /* 2^-4 */
@@ -875,14 +885,14 @@ typedef struct {        /* TEC grid type */
 
 typedef struct {        /* SBAS message type */
 	int week,tow;       /* receiption time */
-    int band;           /* 0:L1,1:L5 */
-    uint8_t prn,rcv;    /* SBAS satellite PRN,receiver number */
-    uint8_t msg[29];    /* SBAS message (226bit) padded by 0 */
+	int band;           /* 0:L1,1:L5 */
+	uint8_t prn,rcv;    /* SBAS satellite PRN,receiver number */
+	uint8_t msg[29];    /* SBAS message (226bit) padded by 0 */
 } sbsmsg_t;
 
 typedef struct {        /* SBAS messages type */
     int n,nmax;         /* number of SBAS messages/allocated */
-    sbsmsg_t *msgs;     /* SBAS messages */
+	sbsmsg_t *msgs;     /* SBAS messages */
 } sbs_t;
 
 typedef struct {        /* SBAS fast correction type */
@@ -1039,12 +1049,14 @@ typedef struct {        /* SSR correction type */
 } ssr_t;
 
 typedef struct {        /* RTCM SSR common parameters */
-    int iod;
+	int iod;            /* IOD SSR */
+	int iodm;           /* IOD mask */
 	int provid;         /* provider ID */
 	int solid;          /* solution ID */
 	int epid;        	/*  */
 	int iyaw;
-	int nsat;           /* number of satellite */
+	int nsat;           /* number of satellite for correction */
+    int sat[MAXSAT];    /* satellite number for correction */
 	double pos[MAXGP][3];   /* coordinates of grid points */
 	trop_t trop;
     stec_t stec;
@@ -1414,6 +1426,14 @@ typedef struct {        /* RTK control/result type */
     prcopt_t opt;       /* processing options */
 } rtk_t;
 
+typedef struct {        /* SSR message type */
+	int week,tow;       /* receiption time */
+	int ch;             /* 0:L1,1:L5,2:L6D,3:L6E,4:E6,5:L5b,6:B2b,7:L3 */
+	int sat;            /* Satellite number */
+    int len;            /* byte length */
+	uint8_t msg[250];   /* SSR message (2000bit) padded by 0 */
+} ssrmsg_t;
+
 typedef struct {        /* receiver raw data control type */
     gtime_t time;       /* message time */
     gtime_t tobs[MAXSAT][NFREQ+NEXOBS]; /* observation data time */
@@ -1423,13 +1443,17 @@ typedef struct {        /* receiver raw data control type */
     sta_t sta;          /* station parameters */
     int ephsat;         /* update satelle of ephemeris (0:no satellite) */
     int ephset;         /* update set of ephemeris (0-1) */
-    sbsmsg_t sbsmsg;    /* SBAS message */
+	sbsmsg_t sbsmsg;    /* SBAS message */
 	char msgtype[256];  /* last message type */
 #if NSATQZS > 0
 	l6msg_t l6msg[NSATQZS*2];  /* QZSS L6 message */
 #else
     l6msg_t l6msg[1];
 #endif
+	int ssrmode;        /* SSR message type:
+						   1:RTCM,2:CLAS,3:MADOCA-PPP,4:Galileo HAS,
+						   5:BDS-PPP,6:GLONASS-PPP,7:PVS,8:POINT */
+    ssrmsg_t ssrmsg;    /* SSR message */
     uint8_t subfrm[MAXSAT][610]; /* subframe buffer */
     double lockt[MAXSAT][NFREQ+NEXOBS]; /* lock time (s) */
     double icpp[MAXSAT],off[MAXSAT],icpc; /* carrier params for ss2 */
@@ -1840,6 +1864,7 @@ EXPORT int decode_bds_cnav2(const uint8_t *buff, eph_t *eph, double *ion,
 	double *utc, double *eop, int mode);
 EXPORT int decode_bds_cnav3(const uint8_t *buff, eph_t *eph, double *ion,
 	double *utc, double *eop, int mode);
+EXPORT int decode_bds_ppp(const uint8_t *buff,raw_t *raw);
 EXPORT int decode_gal_inav(const uint8_t *buff, eph_t *eph, double *ion,
 						   double *utc);
 EXPORT int decode_gal_fnav(const uint8_t *buff, eph_t *eph, double *ion,
@@ -1854,6 +1879,7 @@ EXPORT void set_ion_param(raw_t *raw, int sat, navtype_t navtype, double *ion);
 EXPORT void set_utc_param(raw_t *raw, int sat, navtype_t navtype, double *utc);
 EXPORT void set_eop_param(raw_t *raw, int sat, navtype_t navtype, double *eop);
 EXPORT void sto2utc(sto_t *sto, double *utc);
+EXPORT void ssroutmsg(FILE *fp, rnxopt_t *opt, raw_t *raw);
 
 EXPORT int init_raw   (raw_t *raw, int format);
 EXPORT void free_raw  (raw_t *raw);
@@ -1951,7 +1977,7 @@ EXPORT int convgpx(const char *infile, const char *outfile, gtime_t ts,
 EXPORT int  sbsreadmsg (const char *file, int sel, sbs_t *sbs);
 EXPORT int  sbsreadmsgt(const char *file, int sel, gtime_t ts, gtime_t te,
                         sbs_t *sbs);
-EXPORT void sbsoutmsg(FILE *fp, sbsmsg_t *sbsmsg);
+EXPORT void sbsoutmsg(FILE *fp, rnxopt_t *opt, raw_t *raw);
 EXPORT int  sbsdecodemsg(gtime_t time, int prn, const uint32_t *words,
                          sbsmsg_t *sbsmsg);
 EXPORT int sbsupdatecorr(const sbsmsg_t *msg, nav_t *nav);

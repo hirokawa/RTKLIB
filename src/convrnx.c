@@ -46,7 +46,7 @@
 *-----------------------------------------------------------------------------*/
 #include "rtklib.h"
 
-#define NOUTFILE        9       /* number of output files */
+#define NOUTFILE        12      /* number of output files */
 #define NSATSYS         7       /* number of satellite systems */
 #define TSTARTMARGIN    60.0    /* time margin for file name replacement */
 
@@ -1154,17 +1154,18 @@ static void convsbs(FILE **ofp, rnxopt_t *opt, strfile_t *str, int *n,
 {
     gtime_t time;
     int prn,sat,sys,sep_nav=opt->rnxver<=299||opt->sep_nav;
-    
+
     trace(3,"convsbs :\n");
     
     time=gpst2time(str->raw.sbsmsg.week,str->raw.sbsmsg.tow);
 
     if (!screent(time,opt->ts,opt->te,0.0)) return;
-    
-    /* avoid duplicated data by multiple files handover */
-    if (tend->time&&timediff(time,*tend)<opt->ttol) return;
-    *tend=time;
 
+#if 0
+	/* avoid duplicated data by multiple files handover */
+	if (tend->time&&timediff(time,*tend)<opt->ttol) return;
+	*tend=time;
+#endif
     prn=str->raw.sbsmsg.prn;
     if (MINPRNSBS<=prn&&prn<=MAXPRNSBS) {
         sys=SYS_SBS;
@@ -1180,9 +1181,9 @@ static void convsbs(FILE **ofp, rnxopt_t *opt, strfile_t *str, int *n,
     if (!(sat=satno(sys,prn))||opt->exsats[sat-1]==1) return;
     
     /* output SBAS message log */
-    if (ofp[NOUTFILE-1]) {
-        sbsoutmsg(ofp[NOUTFILE-1],&str->raw.sbsmsg);
-        n[NOUTFILE-1]++;
+	if (ofp[8]) {
+		sbsoutmsg(ofp[8],opt,&str->raw);
+        n[8]++;
     }
     /* output SBAS ephemeris */
     if ((opt->navsys&SYS_SBS)&&sbsupdatecorr(&str->raw.sbsmsg,str->nav)==9) {
@@ -1196,6 +1197,45 @@ static void convsbs(FILE **ofp, rnxopt_t *opt, strfile_t *str, int *n,
             n[3]++;
         }
     }
+}
+/* convert SSR message ------------------------------------------------------*/
+static void convssr(FILE **ofp, rnxopt_t *opt, strfile_t *str, int *n,
+                    gtime_t *tend)
+{
+	gtime_t time;
+	int prn,sat,sys,j=0;
+	ssrmsg_t *p=&str->raw.ssrmsg;
+
+	trace(3,"convssr :\n");
+
+	/*time=gpst2time(p->week,p->tow);*/
+	time=str->raw.time;
+
+	if (!screent(time,opt->ts,opt->te,0.0)) return;
+
+	/* avoid duplicated data by multiple files handover */
+	/*if (tend->time&&timediff(time,*tend)<opt->ttol) return;
+	*tend=time; */
+
+	sys=satsys(p->sat,&prn);
+	if (!(opt->navsys&sys)) return;
+	if (opt->exsats[sat-1]==1) return;
+
+	/* 9:L6,10:E6,11:B2b */
+	switch (str->raw.ssrmode) {
+		case SSR_CLAS:
+		case SSR_MADOCA:
+			j=9; break;
+		case SSR_HAS: j=10; break;
+		case SSR_BDS: j=11; break;
+        default: return;
+	}
+
+	/* output SSR message log */
+	if (ofp[j]) {
+		ssroutmsg(ofp[j],opt,&str->raw);
+        n[j]++;
+	}
 }
 /* set approx position in RINEX options --------------------------------------*/
 static void setopt_apppos(strfile_t *str, rnxopt_t *opt)
@@ -1251,9 +1291,10 @@ static int convrnx_s(int sess, int format, rnxopt_t *opt, const char *file,
     char path[1024],*paths[NOUTFILE],s[NOUTFILE][1024];
     char *epath[MAXEXFILE]={0},*staname=*opt->staid?opt->staid:"0000";
     
-    trace(3,"convrnx_s: sess=%d format=%d file=%s ofile=%s %s %s %s %s %s %s "
+	trace(3,"convrnx_s: sess=%d format=%d file=%s ofile=%s %s %s %s %s %s %s %s %s %s"
           "%s %s\n",sess,format,file,ofile[0],ofile[1],ofile[2],ofile[3],
-          ofile[4],ofile[5],ofile[6],ofile[7],ofile[8]);
+		  ofile[4],ofile[5],ofile[6],ofile[7],ofile[8],ofile[9],ofile[10],
+		  ofile[11]);
     
     /* replace keywords in input file */
     if (reppath(file,path,opt->ts,staname,"")<0) {
@@ -1332,7 +1373,8 @@ static int convrnx_s(int sess, int format, rnxopt_t *opt, const char *file,
                 case  1: convobs(ofp,opt,str,n,tend,&staid); break;
 				case  2: convnav(ofp,opt,str,n); break;
                 case  3: convsbs(ofp,opt,str,n,tend+1); break;
-                case -1: n[NOUTFILE]++; break; /* error */
+                case 10: convssr(ofp,opt,str,n,tend+1); break;
+				case -1: n[NOUTFILE]++; break; /* error */
             }
             /* set approx position in rinex option */
             if (type==1&&!opt->autopos&&norm(opt->apppos,3)<=0.0) {
@@ -1389,9 +1431,9 @@ extern int convrnx(int format, rnxopt_t *opt, const char *file, char **ofile)
     double tu,ts;
     int i,week,stat=1,sys_GRS=SYS_GPS|SYS_GLO|SYS_SBS;
     
-    trace(3,"convrnx: format=%d file=%s ofile=%s %s %s %s %s %s %s %s %s\n",
+	trace(3,"convrnx: format=%d file=%s ofile=%s %s %s %s %s %s %s %s %s %s %s\n",
           format,file,ofile[0],ofile[1],ofile[2],ofile[3],ofile[4],ofile[5],
-          ofile[6],ofile[7],ofile[8]);
+          ofile[6],ofile[7],ofile[8],ofile[9],ofile[10],ofile[11]);
     
     showmsg("");
     

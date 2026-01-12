@@ -57,6 +57,7 @@
 #include "rtklib.h"
 
 #define PREAMB_CNAV 0x8B
+#define LEXFRMPREAMB    0x1ACFFC1Du     /* lex frame preamble */
 
 #define ISTXT(c)    ('0'<=(c)&&(c)<='~')
 #define ISHEX(c)    (('0'<=(c)&&(c)<='9')||('A'<=(c)&&(c)<='F'))
@@ -1134,6 +1135,75 @@ static int decode_nd(raw_t *raw, int sys)
     }
     return 0;
 }
+/* decode [xd] QZS L6 raw navigation data -------------------------------------------*/
+static int decode_l6(raw_t *raw)
+{
+    uint8_t *p=raw->buff+5;
+    char *msg;
+	int i,j,id,sat,prn,time,type,len,sys=SYS_QZS,ec=0,week;
+	l6msg_t *l6msg;
+    ssrmsg_t *ssrmsg=&raw->ssrmsg;
+    uint32_t preamb;
+
+    if (!checksum(raw->buff,raw->len)) {
+        trace(2,"javad xd checksum error: sys=%d len=%d\n",sys,raw->len);
+        return -1;
+    }
+
+    prn =U1(p); p+=1;
+    time=U4(p); p+=4; /* QZSS time of receiving of message [s] */
+    type=U1(p); p+=1; /* 0:L6D,1:L6E */
+    len =U1(p); p+=1;
+    if (raw->len!=13+len&&raw->len!=14+len) {
+        trace(2,"javad xd length error: len=%d\n",raw->len);
+        return -1;
+	}
+	ec = U1(p+len); /* errCorr>0: number of error corrected by RS */
+	if (raw->outtype) {
+		msg=raw->msgtype+strlen(raw->msgtype);
+		sprintf(msg," prn=%3d time=%7d type=%d err=%d",prn,time,type,ec);
+    }
+    if (!(sat=satno(sys,prn))) {
+        trace(2,"javad xd satellite error: sys=%d prn=%d\n",sys,prn);
+        return 0;
+	}
+
+	time2gpst(raw->time,&ssrmsg->week);
+	ssrmsg->tow=time;
+	ssrmsg->sat=sat;
+	ssrmsg->ch=(type==0)?2:3;
+	raw->ssrmode=(type==0&&(prn>=193&&prn<=196))?SSR_CLAS:SSR_MADOCA;
+	ssrmsg->len=250;
+	memcpy(ssrmsg->msg,p,ssrmsg->len);
+
+#if 0
+	/* copy data */
+	if (type==0 || type==1) {
+		id=prn-MINPRNQZS;
+		l6msg = &raw->l6msg[id+NSATQZS*type];
+		l6msg->ttt = time;
+		l6msg->stat = type;
+		l6msg->prn = prn;
+		i=0;
+		preamb = getbitu(p,i,32); i+=32;
+		if (preamb!=LEXFRMPREAMB) {
+			trace(1,"L6 frame preamble error: prn=%3d preamb=%08X\n",prn,preamb);
+			return 0;
+		}
+		l6msg->prn = getbitu(p,i, 8); i+= 8;
+		l6msg->type = getbitu(p,i, 8); i+= 8;
+		l6msg->alert = getbitu(p,i, 1); i+= 1;
+
+		for (j=0;j<212;j++) {
+			l6msg->msg[j]=(unsigned char)getbitu(p,i,8); i+=8;
+		}
+		l6msg->msg[211]&=0xFE;
+	}
+#endif
+	trace(3,"decode_xd sys=%2d prn=%3d time=%7d type=%d err=%d\n",
+			sys,prn,time,type,ec);
+	return 10;
+}
 /* decode [LD] GLONASS raw navigation data -----------------------------------*/
 static int decode_LD(raw_t *raw)
 {
@@ -1259,7 +1329,7 @@ static int decode_ud(raw_t *raw)
 	switch (type) {
 		case 0:ofst=SF_OFST_GLO_L1OC;break;
 		case 1:ofst=SF_OFST_GLO_L2OC;break;
-		case 2:ofst=SF_OFST_GLO_L3OC+30;break;
+		case 2:ofst=SF_OFST_GLO_L3OC;break;
 		default:ofst=SF_OFST_GLO_L3OC;
 	}
 
@@ -1271,9 +1341,9 @@ static int decode_ud(raw_t *raw)
 	/*geph.tof=raw->time;*/
 
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (geph.iode==raw->nav.geph[prn-1+(type+1)*MAXSAT].iode) return 0; /* unchanged */
+        if (geph.iode==raw->nav.geph[prn-1+(type+1)*NSATGLO].iode) return 0; /* unchanged */
     }
-    raw->nav.geph[prn-1+(type+1)*MAXSAT]=geph;
+    raw->nav.geph[prn-1+(type+1)*NSATGLO]=geph;
 	raw->ephsat=sat;
 	raw->ephset=type+1;
     return 2;
@@ -1333,10 +1403,13 @@ static int decode_ED(raw_t *raw)
 		mt = getbitu(p,0,6);
 		memcpy(raw->subfrm[sat-1]+SF_OFST_GAL_FNAV+31*(mt-1),p,31);
 	} else if (type==6) { /* C/NAV (len=62) */
+#if 0
 		for (i=0;i<len;i++) {
-            raw->subfrm[sat-1][i+SF_OFST_GAL_CNAV]=U1(p+i);
+			raw->subfrm[sat-1][i+SF_OFST_GAL_CNAV]=U1(p+i);
 		}
-    }
+#endif
+	}
+
 
     switch (type) {
         case 0: /* E1B  INAV */
@@ -1388,8 +1461,15 @@ static int decode_ED(raw_t *raw)
             raw->ephsat=sat;
             raw->ephset=1; /* F/NAV */
             return 2;
-        case 6: /* E6 C/NAV page 492bits */
-        	return decode_gal_cnav(raw->subfrm[sat-1]+362,&raw->nav);
+		case 6: /* E6 C/NAV page 492bits */
+			raw->ssrmode=SSR_HAS;
+			raw->ssrmsg.sat=sat;
+			raw->ssrmsg.len=61;
+            raw->ssrmsg.ch=4; /* E6B */
+			memcpy(raw->ssrmsg.msg,p,250);
+			/* decode_gal_cnav(raw->subfrm[sat-1]+SF_OFST_GAL_CNAV,
+				&raw->nav) */
+			return 10;
         default: break;
     }
 
@@ -1538,16 +1618,16 @@ static int decode_cd(raw_t *raw)
 			raw->ephset=2;
 			return 2;
 		case 6: /* B2b */
-			if (prn>=59) { /* GEO PPP */
-#ifdef USE_BDS_PPP
-				if (raw->time.time==0.0) return 0;
-				if (prn<=5 || prn>=59) { /* GEO: B2bI PPP */
-					if (tow!=tow_p)
-						decode_bds_ppp(raw->subfrm[sat-1],raw);
-					tow_p=tow;
-				}
-#endif
-				return 5;
+			if (prn<=5) {
+				return 0;
+			} else if (prn>=59) { /* BDS PPP */
+				raw->ssrmode=SSR_BDS;
+                raw->ssrmsg.sat=sat;
+				raw->ssrmsg.len=62;
+				raw->ssrmsg.ch=6; /* B2b */
+                memcpy(raw->ssrmsg.msg,subfrm,len*4);
+				/*return decode_bds_ppp(subfrm,raw);*/
+				return 10;
 			} else {    /* B2b C-NAV3 */
 				id = getbitu(subfrm,0,6);
 				if (id==10) {
@@ -2276,6 +2356,7 @@ static int decode_javad(raw_t *raw)
 
 	if (!strncmp(p,"cd",2)) return decode_cd(raw); /* Beidou raw navigation data */
 	if (!strncmp(p,"id",2)) return decode_id(raw); /* IRNSS raw navigation data */
+	if (!strncmp(p,"xd",2)) return decode_l6(raw); /* QZS L6 raw navigation data */
 	if (!strncmp(p,"LD",2)) return decode_LD(raw); /* GLONASS raw navigation data */
 	if (!strncmp(p,"lD",2)) return decode_lD(raw); /* GLONASS raw navigation data */
 	if (!strncmp(p,"ud",2)) return decode_ud(raw); /* GLCDMA raw navigation data */

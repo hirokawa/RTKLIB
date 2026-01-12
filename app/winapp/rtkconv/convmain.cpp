@@ -146,16 +146,17 @@ void __fastcall TMainWindow::Panel2Resize(TObject *Sender)
 {
 	TButton *btns1[]={
 		BtnOutFile1,BtnOutFile2,BtnOutFile3,BtnOutFile4,BtnOutFile5,
-		BtnOutFile6,BtnOutFile7,BtnOutFile8,BtnOutFile9
+		BtnOutFile6,BtnOutFile7,BtnOutFile8,BtnOutFile9,BtnOutFile10,
+        BtnOutFile11,BtnOutFile12
 	};
 	TSpeedButton *btns2[]={
 		BtnOutFileView1,BtnOutFileView2,BtnOutFileView3,BtnOutFileView4,
 		BtnOutFileView5,BtnOutFileView6,BtnOutFileView7,BtnOutFileView8,
-		BtnOutFileView9
+		BtnOutFileView9,BtnOutFileView10,BtnOutFileView11,BtnOutFileView12
 	};
 	TEdit *inps[]={
 		OutFile1,OutFile2,OutFile3,OutFile4,OutFile5,OutFile6,OutFile7,
-		OutFile8,OutFile9
+		OutFile8,OutFile9,OutFile10,OutFile11,OutFile12
 	};
 	int w=Panel2->Width;
 	
@@ -168,7 +169,7 @@ void __fastcall TMainWindow::Panel2Resize(TObject *Sender)
 	BtnOutDir->Left=w-BtnOutDir->Width-Format->Width-6;
 	OutDir->Width=w-BtnOutDir->Width-Format->Width-7-OutDir->Left;
 	
-	for (int i=0;i<9;i++) {
+	for (int i=0;i<12;i++) {
 		btns1[i]->Left=w-btns1[i]->Width-5;
 		btns2[i]->Left=w-btns1[i]->Width-btns2[i]->Width-5;
 		inps[i]->Width=w-btns1[i]->Width-btns2[i]->Width-6-inps[i]->Left;
@@ -180,11 +181,11 @@ void __fastcall TMainWindow::SetOutFiles(AnsiString infile)
 {
 	TEdit *edit[]={
 		OutFile1,OutFile2,OutFile3,OutFile4,OutFile5,OutFile6,OutFile7,
-		OutFile8,OutFile9
+		OutFile8,OutFile9,OutFile10,OutFile11,OutFile12
 	};
 	AnsiString Format_Text=Format->Text;
 	AnsiString OutDir_Text=OutDir->Text;
-	char *ifile,ofile[10][1024],*p;
+	char *ifile,ofile[13][1024],*p;
 	
 	if (!EventEna) return;
 	
@@ -210,6 +211,9 @@ void __fastcall TMainWindow::SetOutFiles(AnsiString infile)
 		sprintf(ofile[7],"%s.cnav",ofile[0]);
 		sprintf(ofile[8],"%s.inav",ofile[0]);
 		sprintf(ofile[9],"%s.sbs" ,ofile[0]);
+		sprintf(ofile[10],"%s.l6" ,ofile[0]);
+ 		sprintf(ofile[11],"%s.e6b" ,ofile[0]);
+ 		sprintf(ofile[12],"%s.b2b" ,ofile[0]);
 	}
 	else {
 		if ((p=strrchr(ofile[0],'\\'))) *(p+1)='\0';
@@ -228,8 +232,11 @@ void __fastcall TMainWindow::SetOutFiles(AnsiString infile)
 		sprintf(ofile[7],"%s%%r%%n0.%%yC",ofile[0]);
 		sprintf(ofile[8],"%s%%r%%n0.%%yI",ofile[0]);
 		sprintf(ofile[9],"%s%%r%%n0_%%y.sbs",ofile[0]);
+		sprintf(ofile[10],"%s%%r%%n0_%%y.l6",ofile[0]);
+		sprintf(ofile[11],"%s%%r%%n0_%%y.e6b",ofile[0]);
+		sprintf(ofile[12],"%s%%r%%n0_%%y.b2b",ofile[0]);
 	}
-	for (int i=0;i<9;i++) {
+	for (int i=0;i<12;i++) {
 		if (!strcmp(ofile[i+1],ifile)) strcat(ofile[i+1],"_");
 		AnsiString ustr=ofile[i+1];
 		edit[i]->Text=ustr;
@@ -481,11 +488,38 @@ void __fastcall TMainWindow::BtnOutFile8Click(TObject *Sender)
 // callback on button-output-file-9 -----------------------------------------
 void __fastcall TMainWindow::BtnOutFile9Click(TObject *Sender)
 {
-	OpenDialog2->Title="Output SBAS/LEX Log File";
+	OpenDialog2->Title="Output SBAS/L6 Log File";
 	OpenDialog2->FileName="";
 	OpenDialog2->FilterIndex=10;
 	if (!OpenDialog2->Execute()) return;
 	OutFile9->Text=OpenDialog2->FileName;
+}
+// callback on button-output-file-10 -----------------------------------------
+void __fastcall TMainWindow::BtnOutFile10Click(TObject *Sender)
+{
+	OpenDialog2->Title="Output L6 Log File";
+	OpenDialog2->FileName="";
+	OpenDialog2->FilterIndex=11;
+	if (!OpenDialog2->Execute()) return;
+	OutFile10->Text=OpenDialog2->FileName;
+}
+// callback on button-output-file-11 -----------------------------------------
+void __fastcall TMainWindow::BtnOutFile11Click(TObject *Sender)
+{
+	OpenDialog2->Title="Output Galileo CNAV Log File";
+	OpenDialog2->FileName="";
+	OpenDialog2->FilterIndex=12;
+	if (!OpenDialog2->Execute()) return;
+	OutFile11->Text=OpenDialog2->FileName;
+}
+// callback on button-output-file-12 -----------------------------------------
+void __fastcall TMainWindow::BtnOutFile12Click(TObject *Sender)
+{
+	OpenDialog2->Title="Output BDS PPP Log File";
+	OpenDialog2->FileName="";
+	OpenDialog2->FilterIndex=13;
+	if (!OpenDialog2->Execute()) return;
+	OutFile12->Text=OpenDialog2->FileName;
 }
 // callback on button-view-input-file ----------------------------------------
 void __fastcall TMainWindow::BtnInFileViewClick(TObject *Sender)
@@ -578,6 +612,30 @@ void __fastcall TMainWindow::BtnOutFileView9Click(TObject *Sender)
 	AnsiString OutFile9_Text=OutFile9->Text;
 	viewer->Show();
 	viewer->Read(RepPath(OutFile9_Text));
+}
+// callback on button-view-file-10 -------------------------------------------
+void __fastcall TMainWindow::BtnOutFileView10Click(TObject *Sender)
+{
+	TTextViewer *viewer=new TTextViewer(Application);
+	AnsiString OutFile10_Text=OutFile10->Text;
+	viewer->Show();
+	viewer->Read(RepPath(OutFile10_Text));
+}
+// callback on button-view-file-11 -------------------------------------------
+void __fastcall TMainWindow::BtnOutFileView11Click(TObject *Sender)
+{
+	TTextViewer *viewer=new TTextViewer(Application);
+	AnsiString OutFile11_Text=OutFile11->Text;
+	viewer->Show();
+	viewer->Read(RepPath(OutFile11_Text));
+}
+// callback on button-view-file-12 -------------------------------------------
+void __fastcall TMainWindow::BtnOutFileView12Click(TObject *Sender)
+{
+	TTextViewer *viewer=new TTextViewer(Application);
+	AnsiString OutFile12_Text=OutFile12->Text;
+	viewer->Show();
+	viewer->Read(RepPath(OutFile12_Text));
 }
 // callback on button-about -------------------------------------------------
 void __fastcall TMainWindow::BtnAboutClick(TObject *Sender)
@@ -798,6 +856,9 @@ void __fastcall TMainWindow::UpdateEnable(void)
 	OutFileEna7    ->Enabled=sep_nav&&(NavSys&SYS_CMP)&&RnxVer>=4;
 	OutFileEna8    ->Enabled=sep_nav&&(NavSys&SYS_IRN)&&RnxVer>=6;
 	OutFileEna9    ->Enabled=!rnx;
+	OutFileEna10   ->Enabled=(NavSys&SYS_QZS);
+	OutFileEna11   ->Enabled=(NavSys&SYS_GAL);
+	OutFileEna12   ->Enabled=(NavSys&SYS_CMP);
 	OutDir		   ->Enabled=OutDirEna	->Checked;
 	LabelOutDir    ->Enabled=OutDirEna	->Checked;
 	OutFile1	   ->Enabled=OutFileEna1->Checked;
@@ -809,6 +870,9 @@ void __fastcall TMainWindow::UpdateEnable(void)
 	OutFile7	   ->Enabled=OutFileEna7->Checked&&OutFileEna7->Enabled;
 	OutFile8	   ->Enabled=OutFileEna8->Checked&&OutFileEna8->Enabled;
 	OutFile9	   ->Enabled=OutFileEna9->Checked&&!rnx;
+	OutFile10	   ->Enabled=OutFileEna10->Checked&&OutFileEna10->Enabled;
+	OutFile11	   ->Enabled=OutFileEna11->Checked&&OutFileEna11->Enabled;
+	OutFile12	   ->Enabled=OutFileEna12->Checked&&OutFileEna12->Enabled;
 	BtnOutDir	   ->Enabled=OutDirEna	->Checked;
 	BtnOutFile1    ->Enabled=OutFile1->Enabled;
 	BtnOutFile2    ->Enabled=OutFile2->Enabled;
@@ -819,6 +883,9 @@ void __fastcall TMainWindow::UpdateEnable(void)
 	BtnOutFile7    ->Enabled=OutFile7->Enabled;
 	BtnOutFile8    ->Enabled=OutFile8->Enabled;
 	BtnOutFile9    ->Enabled=OutFile9->Enabled;
+	BtnOutFile10   ->Enabled=OutFile10->Enabled;
+	BtnOutFile11   ->Enabled=OutFile11->Enabled;
+	BtnOutFile12   ->Enabled=OutFile12->Enabled;
 	BtnOutFileView1->Enabled=OutFile1->Enabled;
 	BtnOutFileView2->Enabled=OutFile2->Enabled;
 	BtnOutFileView3->Enabled=OutFile3->Enabled;
@@ -828,6 +895,9 @@ void __fastcall TMainWindow::UpdateEnable(void)
 	BtnOutFileView7->Enabled=OutFile7->Enabled;
 	BtnOutFileView8->Enabled=OutFile8->Enabled;
 	BtnOutFileView9->Enabled=OutFile9->Enabled;
+	BtnOutFileView10->Enabled=OutFile10->Enabled;
+	BtnOutFileView11->Enabled=OutFile11->Enabled;
+	BtnOutFileView12->Enabled=OutFile12->Enabled;
 }
 // disable highlight of combo box -------------------------------------------
 void __fastcall TMainWindow::DisableHighlight(void)
@@ -845,13 +915,16 @@ void __fastcall TMainWindow::ConvertFile(void)
 	AnsiString OutFile5_Text=OutFile5->Text,OutFile6_Text=OutFile6->Text;
 	AnsiString OutFile7_Text=OutFile7->Text,OutFile8_Text=OutFile8->Text;
 	AnsiString OutFile9_Text=OutFile9->Text;
+	AnsiString OutFile10_Text=OutFile10->Text;
+	AnsiString OutFile11_Text=OutFile11->Text;
+	AnsiString OutFile12_Text=OutFile12->Text;
 	int i,format,sat;
-	char file[1024]="",*ofile[9],ofile_[9][1024]={""},msg[256],*p;
+	char file[1024]="",*ofile[12],ofile_[12][1024]={""},msg[256],*p;
 	char buff[256],tstr[32];
 	int RNXVER[]={210,211,212,300,301,302,303,304,305,400,401,402};
 	FILE *fp;
 	
-	for (i=0;i<9;i++) ofile[i]=ofile_[i];
+	for (i=0;i<12;i++)  ofile[i]=ofile_[i];
 	
 	// recognize input file format
 	strcpy(file,InFile_Text.c_str());
@@ -859,6 +932,7 @@ void __fastcall TMainWindow::ConvertFile(void)
 	if (Format->ItemIndex==0) { // auto
 		if		(!strcmp(p,".rtcm2")) format=STRFMT_RTCM2;
 		else if (!strcmp(p,".rtcm3")) format=STRFMT_RTCM3;
+		else if (!strcmp(p,".rtc"  )) format=STRFMT_RTCM3;
 		else if (!strcmp(p,".gps"  )) format=STRFMT_OEM4;
 		else if (!strcmp(p,".ubx"  )) format=STRFMT_UBX;
 		else if (!strcmp(p,".log"  )) format=STRFMT_SS2;
@@ -923,9 +997,12 @@ void __fastcall TMainWindow::ConvertFile(void)
 	if (OutFile7->Enabled&&OutFileEna7->Checked) strcpy(ofile[6],OutFile7_Text.c_str());
 	if (OutFile8->Enabled&&OutFileEna8->Checked) strcpy(ofile[7],OutFile8_Text.c_str());
 	if (OutFile9->Enabled&&OutFileEna9->Checked) strcpy(ofile[8],OutFile9_Text.c_str());
-	
+	if (OutFile10->Enabled&&OutFileEna10->Checked) strcpy(ofile[9],OutFile10_Text.c_str());
+	if (OutFile11->Enabled&&OutFileEna11->Checked) strcpy(ofile[10],OutFile11_Text.c_str());
+	if (OutFile12->Enabled&&OutFileEna12->Checked) strcpy(ofile[11],OutFile12_Text.c_str());
+
 	// check overwrite output file
-	for (i=0;i<9;i++) {
+	for (i=0;i<12;i++) {
 		if (!*ofile[i]||!(fp=fopen(ofile[i],"r"))) continue;
 		fclose(fp);
 		ConfDialog->Label2->Caption=ofile[i];
@@ -1088,9 +1165,9 @@ void __fastcall TMainWindow::LoadOpt(void)
 	TimeStartF ->Checked=ini->ReadInteger("set","timestartf",  0);
 	TimeEndF   ->Checked=ini->ReadInteger("set","timeendf",    0);
 	TimeIntF   ->Checked=ini->ReadInteger("set","timeintf",    0);
-	TimeY1	   ->Text	=ini->ReadString ("set","timey1",	  "2020/01/01");
+	TimeY1	   ->Text	=ini->ReadString ("set","timey1",	  "2026/01/01");
 	TimeH1	   ->Text	=ini->ReadString ("set","timeh1",	  "00:00:00"  );
-	TimeY2	   ->Text	=ini->ReadString ("set","timey2",	  "2020/01/01");
+	TimeY2	   ->Text	=ini->ReadString ("set","timey2",	  "2026/01/01");
 	TimeH2	   ->Text	=ini->ReadString ("set","timeh2",	  "00:00:00"  );
 	TimeInt    ->Text	=ini->ReadString ("set","timeint",	 "1");
 	TimeUnitF  ->Checked=ini->ReadInteger("set","timeunitf",   0);
@@ -1106,6 +1183,9 @@ void __fastcall TMainWindow::LoadOpt(void)
 	OutFile7   ->Text	=ini->ReadString ("set","outfile7",   "");
 	OutFile8   ->Text	=ini->ReadString ("set","outfile8",   "");
 	OutFile9   ->Text	=ini->ReadString ("set","outfile9",   "");
+	OutFile10  ->Text	=ini->ReadString ("set","outfile10",   "");
+	OutFile11  ->Text	=ini->ReadString ("set","outfile11",   "");
+	OutFile12  ->Text	=ini->ReadString ("set","outfile12",   "");
 	OutDirEna  ->Checked=ini->ReadInteger("set","outdirena",   0);
 	OutFileEna1->Checked=ini->ReadInteger("set","outfileena1", 1);
 	OutFileEna2->Checked=ini->ReadInteger("set","outfileena2", 1);
@@ -1116,6 +1196,9 @@ void __fastcall TMainWindow::LoadOpt(void)
 	OutFileEna7->Checked=ini->ReadInteger("set","outfileena7", 1);
 	OutFileEna8->Checked=ini->ReadInteger("set","outfileena8", 1);
 	OutFileEna9->Checked=ini->ReadInteger("set","outfileena9", 1);
+	OutFileEna10->Checked=ini->ReadInteger("set","outfileena10", 1);
+	OutFileEna11->Checked=ini->ReadInteger("set","outfileena11", 1);
+	OutFileEna12->Checked=ini->ReadInteger("set","outfileena12", 1);
 	Format	 ->ItemIndex=ini->ReadInteger("set","format",	   0);
 	
 	InFile->Items=ReadList(ini,"hist","inputfile");
@@ -1210,6 +1293,9 @@ void __fastcall TMainWindow::SaveOpt(void)
 	ini->WriteString ("set","outfile7",   OutFile7	 ->Text);
 	ini->WriteString ("set","outfile8",   OutFile8	 ->Text);
 	ini->WriteString ("set","outfile9",   OutFile9	 ->Text);
+	ini->WriteString ("set","outfile10",  OutFile10	 ->Text);
+	ini->WriteString ("set","outfile11",  OutFile11	 ->Text);
+	ini->WriteString ("set","outfile12",  OutFile12	 ->Text);
 	ini->WriteInteger("set","outdirena",  OutDirEna  ->Checked);
 	ini->WriteInteger("set","outfileena1",OutFileEna1->Checked);
 	ini->WriteInteger("set","outfileena2",OutFileEna2->Checked);
@@ -1220,6 +1306,9 @@ void __fastcall TMainWindow::SaveOpt(void)
 	ini->WriteInteger("set","outfileena7",OutFileEna7->Checked);
 	ini->WriteInteger("set","outfileena8",OutFileEna8->Checked);
 	ini->WriteInteger("set","outfileena9",OutFileEna9->Checked);
+	ini->WriteInteger("set","outfileena10",OutFileEna10->Checked);
+	ini->WriteInteger("set","outfileena11",OutFileEna11->Checked);
+	ini->WriteInteger("set","outfileena12",OutFileEna12->Checked);
 	ini->WriteInteger("set","format",	  Format	 ->ItemIndex);
 	
 	WriteList(ini,"hist","inputfile",InFile->Items);
@@ -1232,4 +1321,8 @@ void __fastcall TMainWindow::SaveOpt(void)
 	delete ini;
 }
 //---------------------------------------------------------------------------
+
+
+
+
 
