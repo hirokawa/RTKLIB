@@ -1669,6 +1669,7 @@ static int decode_ssr4(rtcm_t *rtcm, int sys, int subtype)
 {
     double udint,deph[3],ddeph[3],dclk[3];
 	int i,j,k,type,nsat,sync,iod,prn,sat,iode,refd=0,np,ni,offp;
+    ssr_t *ssr=NULL;
     
     type=getbitu(rtcm->buff,24,12);
     
@@ -1702,19 +1703,20 @@ static int decode_ssr4(rtcm_t *rtcm, int sys, int subtype)
         if (!(sat=satno(sys,prn))) {
             trace(2,"rtcm3 %d satellite number error: prn=%d\n",type,prn);
             continue;
-        }
-        rtcm->ssr[sat-1].t0 [0]=rtcm->ssr[sat-1].t0 [1]=rtcm->time;
-        rtcm->ssr[sat-1].udi[0]=rtcm->ssr[sat-1].udi[1]=udint;
-        rtcm->ssr[sat-1].iod[0]=rtcm->ssr[sat-1].iod[1]=iod;
-        rtcm->ssr[sat-1].iode=iode;
-        rtcm->ssr[sat-1].refd=refd;
+		}
+		ssr=&rtcm->ssr[sat-1];
+		ssr->t0[0]=ssr->t0[1]=rtcm->time;
+		ssr->udi[0]=ssr->udi[1]=udint;
+		ssr->iod[0]=ssr->iod[1]=iod;
+		ssr->iode=iode;
+        ssr->refd=refd;
         
         for (k=0;k<3;k++) {
-            rtcm->ssr[sat-1].deph [k]=deph [k];
-            rtcm->ssr[sat-1].ddeph[k]=ddeph[k];
-            rtcm->ssr[sat-1].dclk [k]=dclk [k];
+			ssr->deph [k]=deph [k];
+			ssr->ddeph[k]=ddeph[k];
+            ssr->dclk [k]=dclk [k];
         }
-		rtcm->ssr[sat-1].update=1;
+		ssr->update=1;
 
 		trace(4,"decode_ssr4: prn=%3d iode=%3d deph=[%7.3f,%7.3f,%7.3f]"
 			" ddeph[%7.3f,%7.3f,%7.3f]  dclk=[%7.3f,%7.3f,%7.3f]\n",
@@ -2199,8 +2201,8 @@ static int decode_ssr_iono(rtcm_t *rtcm, int sys, int subtype)
 		}
 		for (j=ofst;j<ofst+ngp;j++) {
 			for (k=0;k<p->nsat;k++) {
-				p->stec[j][k]=(float)(getbits(rtcm->buff,i, m)*scl); i+=m;
-				sprintf(s," %6.3f",p->stec[j][k]);
+				p->r[j][k]=(float)(getbits(rtcm->buff,i, m)*scl); i+=m;
+				sprintf(s," %6.3f",p->r[j][k]);
 				if (k==0) strcpy(str,s); else strcat(str,s);
 			}
 			trace(4,"decode_ssr_iono %2d %s\n",j+1,str);

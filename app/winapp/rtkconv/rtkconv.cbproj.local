@@ -2,9 +2,10 @@
 <BorlandProject>
 	<Transactions>
     <Transaction>2020/12/08 18:44:06.000.488,=D:\share\RTKLIB\app\winapp\rtkconv\Unit1.cpp</Transaction>
-    <Transaction>2020/12/08 18:57:46.000.847,D:\share\RTKLIB\app\winapp\rtkconv\Unit1.cpp=D:\share\RTKLIB\app\winapp\appcmn\glofcndlg.cpp</Transaction>
-    <Transaction>2020/12/08 18:57:46.000.847,D:\share\RTKLIB\app\winapp\rtkconv\Unit1.h=D:\share\RTKLIB\app\winapp\appcmn\glofcndlg.h</Transaction>
-    <Transaction>2020/12/08 18:57:46.000.847,D:\share\RTKLIB\app\winapp\rtkconv\Unit1.dfm=D:\share\RTKLIB\app\winapp\appcmn\glofcndlg.dfm</Transaction>
+    <Transaction>2020/12/08 18:57:46.000.847,D:\share\RTKLIB\app\winapp\appcmn\glofcndlg.dfm=D:\share\RTKLIB\app\winapp\rtkconv\Unit1.dfm</Transaction>
+    <Transaction>2020/12/08 18:57:46.000.847,D:\share\RTKLIB\app\winapp\appcmn\glofcndlg.h=D:\share\RTKLIB\app\winapp\rtkconv\Unit1.h</Transaction>
+    <Transaction>2020/12/08 18:57:46.000.847,D:\share\RTKLIB\app\winapp\appcmn\glofcndlg.cpp=D:\share\RTKLIB\app\winapp\rtkconv\Unit1.cpp</Transaction>
+    <Transaction>2026/01/12 16:37:51.084,=C:\work\gps\RTKLIB\src\cssr.c</Transaction>
   </Transactions>
 	<ProjectSortOrder AutoSort="0" SortType="0">
     <File Path="..\..\winapp"/>
@@ -55,6 +56,7 @@
     <File Path="..\..\..\src\rcv\ss2.c"/>
     <File Path="..\..\..\src\rcv\ublox.c"/>
     <File Path="..\..\..\src\convrnx.c"/>
+    <File Path="..\..\..\src\cssr.c"/>
     <File Path="..\..\..\src\ephemeris.c"/>
     <File Path="..\..\..\src\ionex.c"/>
     <File Path="..\..\..\src\pntpos.c"/>

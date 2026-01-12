@@ -293,6 +293,9 @@
         <CppCompile Include="..\..\..\src\convrnx.c">
             <BuildOrder>38</BuildOrder>
         </CppCompile>
+        <CppCompile Include="..\..\..\src\cssr.c">
+            <BuildOrder>38</BuildOrder>
+        </CppCompile>
         <CppCompile Include="..\..\..\src\ephemeris.c">
             <BuildOrder>25</BuildOrder>
         </CppCompile>
@@ -580,8 +583,20 @@
                 <DeployFile LocalName="..\..\src\rtkcmn.c" Configuration="Debug" Class="ProjectFile"/>
                 <DeployFile LocalName="..\..\src\sbas.c" Configuration="Debug" Class="ProjectFile"/>
                 <DeployFile LocalName="Debug_Build\rtkconv.exe" Configuration="Debug" Class="ProjectOutput"/>
+                <DeployFile LocalName="Debug_Build\rtkconv.exe" Configuration="Debug" Class="ProjectOutput">
+                    <Platform Name="Win64">
+                        <RemoteName>rtkconv.exe</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
                 <DeployFile LocalName="Release_Build\rtkconv.exe" Configuration="Release" Class="ProjectOutput"/>
                 <DeployFile LocalName="rtkconv.res" Configuration="Debug" Class="ProjectFile"/>
+                <DeployFile LocalName="rtkconv.res" Configuration="Debug" Class="ProjectFile">
+                    <Platform Name="Win64">
+                        <RemoteDir>.\</RemoteDir>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
                 <DeployFile LocalName="rtkconv.res" Configuration="Release" Class="ProjectFile"/>
                 <DeployClass Name="AdditionalDebugSymbols">
                     <Platform Name="iOSSimulator">

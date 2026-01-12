@@ -1020,8 +1020,8 @@ typedef struct {
 	int nsat;
     int sat[MAXSAT];
 	int pgi;            /* polynomial gradient indicator */
-	double c[MAXSAT][3];
-    float stec[MAXGP][MAXSAT];
+	double c[MAXSAT][6];
+    float r[MAXGP][MAXSAT]; /* residual */
 } stec_t;
 
 typedef struct {        /* SSR correction type */
@@ -1036,10 +1036,11 @@ typedef struct {        /* SSR correction type */
     double ddeph[3];    /* dot delta orbit {radial,along,cross} (m/s) */
     double dclk [3];    /* delta clock {c0,c1,c2} (m,m/s,m/s^2) */
     double hrclk;       /* high-rate clock corection (m) */
-    int nsig;           /* number of signals for code bias */
+    int nsigc;          /* number of signals for code bias */
 	int nsigp;          /* number of signals for phase bias */
-	int codetype[MAXCODE]; /* code types */
-    float  cbias[MAXCODE]; /* code biases (m) */
+	int ctype[MAXCODE]; /* code types */
+	int ptype[MAXCODE]; /* phase types */
+	float  cbias[MAXCODE]; /* code biases (m) */
 	double pbias[MAXCODE]; /* phase biases (m) */
 	uint8_t disc[MAXCODE]; /* phase bias discontinuity indicator */
 	uint8_t  sii[MAXCODE]; /* phase bias integer indicator */
@@ -1049,6 +1050,7 @@ typedef struct {        /* SSR correction type */
 } ssr_t;
 
 typedef struct {        /* RTCM SSR common parameters */
+    gtime_t t0;         /* reference time */
 	int iod;            /* IOD SSR */
 	int iodm;           /* IOD mask */
 	int provid;         /* provider ID */
@@ -1928,6 +1930,7 @@ EXPORT int input_rtcm2f(rtcm_t *rtcm, FILE *fp);
 EXPORT int input_rtcm3f(rtcm_t *rtcm, FILE *fp);
 EXPORT int gen_rtcm2   (rtcm_t *rtcm, int type, int sync);
 EXPORT int gen_rtcm3   (rtcm_t *rtcm, int type, int subtype, int sync);
+EXPORT int decode_cssr(rtcm_t *rtcm, int head);
 
 /* solution functions --------------------------------------------------------*/
 EXPORT void initsolbuf(solbuf_t *solbuf, int cyclic, int nmax);
