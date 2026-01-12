@@ -1174,7 +1174,10 @@ static void convsbs(FILE **ofp, rnxopt_t *opt, strfile_t *str, int *n,
         sys=SYS_QZS;
         prn+=10;
     }
-    else {
+    else if (MINPRNQZS<=prn&&prn<=MAXPRNQZS) {
+		sys=SYS_QZS;
+	}
+	else {
         trace(2,"sbas message satellite error: prn=%d\n",prn);
         return;
     }

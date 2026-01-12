@@ -629,18 +629,52 @@ static int decode_galrawinav(raw_t *raw)
     raw->ephset=0; /* 0:I/NAV */
     return 2;
 }
+/* decode SBF Galileo C/NAV navigation page ----------------------------------*/
+static int decode_galrawcnav(raw_t *raw)
+{
+	uint8_t *p=raw->buff+14,buff[64];
+	int i,sat,prn,svid=U1(p),src=U1(p+3)&0x1f;
+
+	if (raw->len<84) {
+		trace(2,"sbf galrawcnav length error: len=%d\n",raw->len);
+		return -1;
+	}
+	if (!(sat=svid2sat(svid))||satsys(sat,&prn)!=SYS_GAL) {
+		trace(2,"sbf galrawcnav svid error: svid=%d src=%d\n",svid,src);
+		return -1;
+	}
+	if (!U1(p+1)) {
+		trace(3,"sbf galrawcnav parity/crc error: prn=%d src=%d\n",prn,src);
+		return 0;
+	}
+	if (raw->outtype) {
+		sprintf(raw->msgtype+strlen(raw->msgtype)," prn=%d src=%d",prn,src);
+	}
+	for (i=0,p+=6;i<16;i++,p+=4) {
+		setbitu(buff,32*i,32,U4(p));
+	}
+
+	raw->ssrmode=SSR_HAS;
+	raw->ssrmsg.sat=sat;
+	raw->ssrmsg.len=61;
+	raw->ssrmsg.ch=4; /* E6B */
+	memcpy(raw->ssrmsg.msg,buff,61);
+
+	return 10;
+}
 /* decode SBF SBAS L1 navigation frame ---------------------------------------*/
 static int decode_georawl1(raw_t *raw)
 {
-    uint8_t *p=raw->buff+14,buff[32];
-    int i,svid,sat,prn;
-    
-    if (raw->len<52) {
+	uint8_t *p=raw->buff+14,buff[32];
+	int i,svid,sat,prn;
+
+	if (raw->len<52) {
         trace(2,"sbf georawl1 length error: len=%d\n",raw->len);
         return -1;
     }
     svid=U1(p);
-    if (!(sat=svid2sat(svid))||satsys(sat,&prn)!=SYS_SBS) {
+	if (!(sat=svid2sat(svid))||(satsys(sat,&prn)!=SYS_SBS&&
+		(prn<MINPRNQZS||prn>MAXPRNQZS))) {
         trace(2,"sbf georawl1 svid error: svid=%d\n",svid);
         return -1;
     }
@@ -655,9 +689,9 @@ static int decode_georawl1(raw_t *raw)
 	raw->sbsmsg.prn=prn;
     raw->sbsmsg.band=0;/* L1 */
     
-    for (i=0;i<8;i++) {
-        setbitu(buff,32*i,32,U4(p+6+4*i));
-    }
+	for (i=0,p+=6;i<8;i++,p+=4) {
+		setbitu(buff,32*i,32,U4(p));
+	}
     memcpy(raw->sbsmsg.msg,buff,29); /* 226 bits w/o CRC */
     raw->sbsmsg.msg[28]&=0xC0;
     return 3;
@@ -673,7 +707,8 @@ static int decode_georawl5(raw_t *raw)
 		return -1;
 	}
 	svid=U1(p);
-	if (!(sat=svid2sat(svid))||satsys(sat,&prn)!=SYS_SBS) {
+	if (!(sat=svid2sat(svid))||(satsys(sat,&prn)!=SYS_SBS&&
+		(prn<MINPRNQZS||prn>MAXPRNQZS))) {
 		trace(2,"sbf georawl5 svid error: svid=%d\n",svid);
 		return -1;
 	}
@@ -688,8 +723,8 @@ static int decode_georawl5(raw_t *raw)
 	raw->sbsmsg.prn=prn;
 	raw->sbsmsg.band=1;/* L5 */
 
-    for (i=0;i<8;i++) {
-        setbitu(buff,32*i,32,U4(p+6+4*i));
+	for (i=0,p+=6;i<8;i++,p+=4) {
+		setbitu(buff,32*i,32,U4(p));
     }
     memcpy(raw->sbsmsg.msg,buff,29); /* 226 bits w/o CRC */
     raw->sbsmsg.msg[28]&=0xC0;
@@ -915,12 +950,17 @@ static int decode_bdsrawcnav3(raw_t *raw)
 		sprintf(raw->msgtype+strlen(raw->msgtype)," prn=%d",prn);
 	}
 
-	if (prn>=58) { /* skip GEO */
-		return 0;
-	}
-
     for (i=0,p+=6;i<31;i++,p+=4) {
 		setbitu(buff,32*i,32,U4(p));
+	}
+
+	if (prn>=58) { /* GEO B2b */
+		raw->ssrmode=SSR_BDS;
+		raw->ssrmsg.sat=sat;
+		raw->ssrmsg.len=62;
+		raw->ssrmsg.ch=6; /* B2b */
+		memcpy(raw->ssrmsg.msg,buff,62);
+		return 10;
 	}
 
 	if(getbitu(buff,0,6)!=prn) {
@@ -1097,69 +1137,34 @@ static int decode_gpsrawcnav2(raw_t *raw, int sys)
 /* decode SBF raw nav message for QZSS L6 */
 static int decode_qzsrawl6(raw_t *raw){
 
-    uint8_t *p=(raw->buff)+14;
-    uint8_t buff[63*4];
-    int i,j,id,prn;
-    uint8_t parity,rscnt,ch;
-    uint32_t tmp,preamb;
+    uint8_t *p=raw->buff+14,buff[252];
+	int i,j,id,sat,prn,svid=U1(p),src=U1(p+3)&0x1f;
 
-    if (raw->len!=272)
-    {
-        trace(1,"SBF decode_qzsrawl6: Block length mismatch (272) %d\n", raw->len);
+    if (raw->len<272) {
+        trace(2,"sbf qzsrawl6: length error: len=%d\n", raw->len);
         return -1;
-    }
+	}
+	if (!(sat=svid2sat(svid))||satsys(sat,&prn)!=SYS_QZS) {
+		trace(2,"sbf qzsrawl6 svid error: svid=%d src=%d\n",svid,src);
+		return -1;
+	}
+	if (!U1(p+1)) {
+		trace(3,"sbf qzsrawl6 parity/crc error: prn=%d src=%d\n",prn,src);
+		return 0;
+	}
+	if (raw->outtype) {
+		sprintf(raw->msgtype+strlen(raw->msgtype)," prn=%d src=%d",prn,src);
+	}
+	for (i=0,p+=6;i<63;i++,p+=4) {
+		setbitu(buff,32*i,32,U4(p));
+	}
 
-    prn = (U1(p)-180)+192;
-    if (prn<MINPRNQZS && prn>MAXPRNQZS) {
-        trace(2,"SBF decode_qzsrawl6: sat out of range: %3d\n",prn); return 0;
-    }
-#if 0
-    id=prn-MINPRNQZS;
-#else
-    id=0;
-#endif
-    parity = U1(p+1);
-    if (parity != 1) {
-        trace(2,"SBF decode_qzssrawl6: parity failed\n"); return 0;
-    }
-    rscnt = U1(p+2);
-    ch = U1(p+5);
-
-    /* copy data */
-    for (i=0;i<63;i++)
-    {
-        tmp = U4(p+6+i*4);
-        buff[4*i]=(tmp>>24) & 0xff;
-        buff[4*i+1]=(tmp>>16) & 0xff;
-        buff[4*i+2]=(tmp>>8) & 0xff;
-        buff[4*i+3]=(tmp>>0) & 0xff;
-    }
-
-    i=0;
-    preamb   =getbitu(buff,i,32); i+=32;
-    if (preamb!=0x1ACFFC1Du) {
-        trace(1,"SBF decode_qzsrawl6: L6 preamble error: preamb=%08X\n",preamb);
-        return 0;
-    }
-    raw->l6msg[id].prn  =getbitu(buff,i, 8); i+= 8;
-    raw->l6msg[id].type =getbitu(buff,i, 8); i+= 8;
-    raw->l6msg[id].alert=getbitu(buff,i, 1); i+= 1;
-#if 0
-    for (j=0;j<212;j++) {
-        raw->l6msg[id].msg[j]=(uint8_t)getbitu(buff,i,8); i+=8;
-    }
-    raw->l6msg[id].msg[211]&=0xFE;
-#else
-    for (j=0,i=0;j<250;j++) {
-        raw->l6msg[id].msg[j]=(uint8_t)getbitu(buff,i,8); i+=8;
-    }
-#endif
-    if (raw->outtype) {
-        sprintf(raw->msgtype,"QZSRAWL6 (%4d): prn=%3d ch=%02x type=%d alert=%d",
-                raw->len,prn,ch,raw->l6msg[id].type,raw->l6msg[id].alert);
-    }
-
-    return 5;
+	raw->ssrmode=(src==1&&prn>=193&&prn<=196)?SSR_CLAS:SSR_MADOCA;
+	raw->ssrmsg.sat=sat;
+	raw->ssrmsg.len=61;
+	raw->ssrmsg.ch=(src==1)?2:3; /* L6 */
+	memcpy(raw->ssrmsg.msg,buff,61);
+	return 10;
 }
 /* decode SBF NavIC/IRNSS subframe -------------------------------------------*/
 static int decode_navicraw(raw_t *raw)
@@ -1324,15 +1329,15 @@ static int decode_sbf(raw_t *raw)
 		case SBF_QZSRAWL2C : return decode_gpsrawcnav (raw,SYS_QZS);
 		case SBF_QZSRAWL5  : return decode_gpsrawcnav (raw,SYS_QZS);
 		case SBF_QZSRAWL1C : return decode_gpsrawcnav2(raw,SYS_QZS);
-		case SBF_QZSRAWL1S : return 0;
-		case SBF_QZSRAWL5S : return 0;
-		case SBF_QZSRAWL6  : return decode_qzsrawl6  (raw);
-		case SBF_QZSRAWL6D : return 0;
-		case SBF_QZSRAWL6E : return 0;
+		case SBF_QZSRAWL1S : return decode_georawl1   (raw);
+		case SBF_QZSRAWL5S : return decode_georawl5   (raw);
+		case SBF_QZSRAWL6  : return decode_qzsrawl6   (raw);
+		case SBF_QZSRAWL6D : return decode_qzsrawl6   (raw);
+		case SBF_QZSRAWL6E : return decode_qzsrawl6   (raw);
 		case SBF_BDSRAWB1C : return decode_bdsrawcnav1(raw);
 		case SBF_BDSRAWB2A : return decode_bdsrawcnav2(raw);
 		case SBF_BDSRAWB2B : return decode_bdsrawcnav3(raw);
-		case SBF_GALRAWCNAV: return 0;
+		case SBF_GALRAWCNAV: return decode_galrawcnav (raw);
 		case SBF_PVTGEODETIC : return 0;
 		case SBF_LBANDTRACKERSTATUS : return 0;
 	}

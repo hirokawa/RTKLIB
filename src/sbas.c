@@ -124,6 +124,32 @@ static double degfcorr(int ai)
     };
     return 0<ai&&ai<=15?degf[ai]:0.0058;
 }
+/* decode message type in SBAS message */
+static int sbstype(sbsmsg_t *sbsmsg)
+{
+	int type=0,prn=sbsmsg->prn,mt;
+    const int mt_t[4]={34,0,32,63};
+
+	if (sbsmsg->band==1&&(prn>=183&&prn<=202)) { /* QZS L5S */
+		mt=sbsmsg->msg[1]>>6;
+		if (mt==1) {
+			switch(sbsmsg->msg[0]) {
+				case 0x53: type=31; break;
+				case 0x9a: type=37; break;
+				case 0xc6: type=47; break;
+                default: return 0;
+            }
+		} else {
+			type=mt_t[mt];
+        }
+	} else if (sbsmsg->band==0) { /* L1 */
+		type=sbsmsg->msg[1]>>2;
+	} else { /* l5 */
+		type=getbitu(sbsmsg->msg,4,6);
+	}
+
+   return type;
+}
 /* decode type 1: prn masks --------------------------------------------------*/
 static int decode_sbstype1(const sbsmsg_t *msg, sbssat_t *sbssat)
 {
@@ -400,9 +426,9 @@ static int decode_sbstype26(const sbsmsg_t *msg, sbsion_t *sbsion)
     
     for (i=0;i<15;i++) {
         if ((j=block*15+i)>=sbsion[band].nigp) continue;
-        give=getbitu(msg->msg,22+i*13+9,4);
-        
-        delay=getbitu(msg->msg,22+i*13,9);
+		give=getbitu(msg->msg,22+i*13+9,4);
+
+		delay=getbitu(msg->msg,22+i*13,9);
         sbsion[band].igp[j].t0=gpst2time(msg->week,msg->tow);
         sbsion[band].igp[j].delay=delay==0x1FF?0.0f:delay*0.125f;
         sbsion[band].igp[j].give=give+1;
@@ -413,6 +439,265 @@ static int decode_sbstype26(const sbsmsg_t *msg, sbsion_t *sbsion)
     }
     trace(5,"decode_sbstype26: band=%d block=%d\n",band,block);
     return 1;
+}
+/* dfmc slot to satellite number */
+static int dfmc_slot2sat(int slot)
+{
+	int sat;
+
+	if      (slot<= 37) sat=satno(SYS_GPS,slot);
+	else if (slot<= 74) sat=satno(SYS_GLO,slot-37);
+	else if (slot<=110) sat=satno(SYS_GAL,slot-74);
+	else if (slot<=158) sat=satno(SYS_SBS,slot);
+	else if (slot<=195) sat=satno(SYS_CMP,slot-158);
+	else if (slot<=196) sat=0;
+	else if (slot<=205) sat=satno(SYS_QZS,slot-4);
+    else 				sat=0;
+	return sat;
+}
+/* decode type 31: dfmc mask -----------------------------*/
+static int decode_sbstype31(const sbsmsg_t *msg, nav_t *nav)
+{
+	int i,n,sat;
+	sbssat_t *sbssat=&nav->sbssat;
+
+	trace(4,"decode_sbstype31:\n");
+
+	for (i=1,n=0;i<=210&&n<MAXSAT;i++) {
+		if (getbitu(msg->msg,9+i,1))
+			sbssat->sat[n++].sat=dfmc_slot2sat(i);
+    }
+    sbssat->iodp=getbitu(msg->msg,224,2);
+    sbssat->nsat=n;
+
+	trace(5,"decode_sbstype31: nprn=%d iodp=%d\n",n,sbssat->iodp);
+
+    return 1;
+}
+/* decode type 32: dfmc clock/ephemeris correction & covariance-------*/
+static int decode_sbstype32(const sbsmsg_t *msg, nav_t *nav)
+{
+	int i=10,slot,iodn,dx,dy,dz,db,ddx,ddy,ddz,ddb,t;
+	int scl,E[4][4]={0},dfrei,dr_cdrr,sat;
+	sbssat_t *sbssat=&nav->sbssat;
+
+	trace(4,"decode_sbstype32:\n");
+
+	slot=getbitu(msg->msg,i,8);i+=8;
+	if (slot==0) return 0;
+
+	sat=dfmc_slot2sat(slot);
+	iodn=getbitu(msg->msg,i,10);i+=10;
+
+	dx=getbits(msg->msg,i,11);i+=11;
+	dy=getbits(msg->msg,i,11);i+=11;
+	dz=getbits(msg->msg,i,11);i+=11;
+	db=getbits(msg->msg,i,12);i+=12;
+
+	ddx=getbits(msg->msg,i,8);i+=8;
+	ddy=getbits(msg->msg,i,8);i+=8;
+	ddz=getbits(msg->msg,i,8);i+=8;
+	ddb=getbits(msg->msg,i,9);i+=9;
+
+	t=(int)getbitu(msg->msg,i,13)*16-(int)msg->tow%86400;
+    if      (t<=-43200) t+=86400;
+    else if (t>  43200) t-=86400;
+	sbssat->sat[sat-1].lcorr.t0=gpst2time(msg->week,msg->tow+t);
+	sbssat->sat[sat-1].lcorr.iode=iodn;
+	sbssat->sat[sat-1].lcorr.dpos[0]=-dx*0.0625;
+	sbssat->sat[sat-1].lcorr.dpos[1]=-dy*0.0625;
+	sbssat->sat[sat-1].lcorr.dpos[2]=-dz*0.0625;
+	sbssat->sat[sat-1].lcorr.daf0=db*0.03125;
+
+	sbssat->sat[sat-1].lcorr.dvel[0]=-ddx*P2_11;
+	sbssat->sat[sat-1].lcorr.dvel[1]=-ddy*P2_11;
+	sbssat->sat[sat-1].lcorr.dvel[2]=-ddz*P2_11;
+	sbssat->sat[sat-1].lcorr.daf1   =ddb*P2_12;
+
+#if 0
+	scl=getbitu(msg->msg,i,3);i+=3;
+	E[0][0]=getbitu(msg->msg,i,9);i+=9;
+	E[1][1]=getbitu(msg->msg,i,9);i+=9;
+	E[2][2]=getbitu(msg->msg,i,9);i+=9;
+	E[3][3]=getbitu(msg->msg,i,9);i+=9;
+	E[0][1]=getbits(msg->msg,i,10);i+=10;
+	E[0][2]=getbits(msg->msg,i,10);i+=10;
+	E[0][3]=getbits(msg->msg,i,10);i+=10;
+	E[1][2]=getbits(msg->msg,i,10);i+=10;
+	E[1][3]=getbits(msg->msg,i,10);i+=10;
+	E[2][3]=getbits(msg->msg,i,10);i+=10;
+
+	dfrei=getbitu(msg->msg,i,4);i+=4;
+	dr_cdrr=getbitu(msg->msg,i,4);i+=4;
+#endif
+	return 3;
+}
+/* decode type 34: dfmc integrity -------------------------*/
+static int decode_sbstype34(const sbsmsg_t *msg, nav_t *nav)
+{
+	trace(4,"decode_sbstype34:\n");
+    return 1;
+}
+/* decode type 35: dfmc integrity -------------------------*/
+static int decode_sbstype35(const sbsmsg_t *msg, nav_t *nav)
+{
+	trace(4,"decode_sbstype35:\n");
+	return 1;
+}
+/* decode type 36: dfmc integrity -------------------------*/
+static int decode_sbstype36(const sbsmsg_t *msg, nav_t *nav)
+{
+	trace(4,"decode_sbstype36:\n");
+    return 1;
+}
+/* decode type 37: dfmc obad -------------------------*/
+static int decode_sbstype37(const sbsmsg_t *msg, nav_t *nav)
+{
+	trace(4,"decode_sbstype37:\n");
+    return 1;
+}
+/* decode type 39: dfmc ephemeris 1 -------------------------*/
+static int decode_sbstype39(const sbsmsg_t *msg, nav_t *nav)
+{
+	trace(4,"decode_sbstype39:\n");
+    return 1;
+}
+/* decode type 40: dfmc ephemeris 2 -------------------------*/
+static int decode_sbstype40(const sbsmsg_t *msg, nav_t *nav)
+{
+	trace(4,"decode_sbstype40:\n");
+    return 1;
+}
+/* decode type 42: dfmc gnss time offset -------------------------*/
+static int decode_sbstype42(const sbsmsg_t *msg, nav_t *nav)
+{
+	trace(4,"decode_sbstype42:\n");
+    return 1;
+}
+/* decode type 47: dfmc almanac -------------------------*/
+static int decode_sbstype47(const sbsmsg_t *msg, nav_t *nav)
+{
+	trace(4,"decode_sbstype47:\n");
+    return 1;
+}
+/* decode type 43: dcr -----------------------------*/
+extern int decode_dcrtype43(const sbsmsg_t *msg, nav_t *nav)
+{
+	int i;
+
+	trace(4,"decode_dcrtype43:\n");
+
+	return 1;
+}
+/* decode type 44: dcr -----------------------------*/
+extern int decode_dcrtype44(const sbsmsg_t *msg, nav_t *nav)
+{
+	int i;
+
+	trace(4,"decode_dcrtype44:\n");
+
+	return 1;
+}
+/* decode type 47: slas  location of reference station -----------------*/
+extern int decode_slastype47(const sbsmsg_t *msg, nav_t *nav)
+{
+	int i=14,k,code,lat,lon,alt;
+
+	trace(4,"decode_slastype47:\n");
+
+	for (k=0;k<5;k++) {
+		code=getbitu(msg->msg,i,6);i+=6;
+		lat=getbits(msg->msg,i,15);i+=15;
+		lon=getbits(msg->msg,i,15);i+=15;
+		alt=getbitu(msg->msg,i,6);i+=6;
+		if (code==63) continue;
+		nav->ssrp.pos[code][0]=lat*0.005;
+		nav->ssrp.pos[code][1]=lon*0.005+115;
+		nav->ssrp.pos[code][2]=alt*50-100;
+	}
+
+	return 1;
+}
+/* decode type 48: slas mask -----------------------------*/
+extern int decode_slastype48(const sbsmsg_t *msg, nav_t *nav)
+{
+	int i=14,sat,n;
+    sbssat_t *sbssat=&nav->sbssat;
+
+	trace(4,"decode_slastype48:\n");
+
+	sbssat->iodp=getbitu(msg->msg,i,2);i+=2;
+
+    for (i=1,n=0;i<=210&&n<MAXSAT;i++) {
+        if (getbitu(msg->msg,15+i,1)) {
+           if      (i<= 64) sat=satno(SYS_GPS,i);    /*   1- 64: gps */
+		   else if (i<= 73) sat=satno(SYS_QZS,i+128);/*  65- 73: qzs */
+		   else if (i<=109) sat=satno(SYS_GLO,i- 73);/*  74-109: glo */
+		   else if (i<=145) sat=satno(SYS_GAL,i-109);/* 110-145: gal */
+           else if (i<=181) sat=satno(SYS_CMP,i-145);/* 146-181: cmp */
+           else             sat=0;                   /* 203-   : reserved */
+           sbssat->sat[n++].sat=sat;
+        }
+	}
+	sbssat->nsat=n;
+	return 1;
+}
+/* decode type 49: slas iod -----------------------------*/
+extern int decode_slastype49(const sbsmsg_t *msg, nav_t *nav)
+{
+	int i,k,iodn,nsat=0,sat=1,iodp,iodi;
+	uint32_t mask;
+	sbssat_t *sbssat=&nav->sbssat;
+
+	trace(4,"decode_slastype49:\n");
+
+	iodp=getbitu(msg->msg,223,2);
+    i=14;
+	iodi=getbitu(msg->msg,i,2);i+=2;
+	mask=getbitu(msg->msg,i,23);i+=23;
+
+	if (iodp!=sbssat->iodp) return -1;
+
+	for (k=0;k<23;k++) {
+		if (((mask>>(23-k-1))&1)==0) continue;
+        sat=sbssat->sat[k].sat;
+		iodn=getbitu(msg->msg,i,8);i+=8;
+		nav->dgps[sat-1].iod=iodn;
+        nsat++;
+	}
+	return 1;
+}
+/* decode type 50: slas dgps correction -----------------------------*/
+extern int decode_slastype50(const sbsmsg_t *msg, nav_t *nav)
+{
+	int i=14,k,iodp,iodi,code,h,prc,nsat=0,sat=1;
+	uint32_t mask;
+	sbssat_t *sbssat=&nav->sbssat;
+
+	trace(4,"decode_slastype50:\n");
+
+	iodp=getbitu(msg->msg,i,2);i+=2;
+	iodi=getbitu(msg->msg,i,2);i+=2;
+	code=getbitu(msg->msg,i,6);i+=6;
+	h   =getbitu(msg->msg,i,1);i+=1;
+	mask=getbitu(msg->msg,i,23);i+=23;
+
+	if (iodp!=sbssat->iodp) return -1;
+
+	for (k=0;k<23;k++) {
+		if (((mask>>(23-k-1))&1)==0) continue;
+        sat=sbssat->sat[k].sat;
+		prc=getbits(msg->msg,i,12);i+=12;
+		nav->dgps[sat-1].prc=prc*0.04;
+        nsat++;
+	}
+	return 1;
+}
+/* decode type 51: slas satellite health -----------------------------*/
+extern int decode_slastype51(const sbsmsg_t *msg, nav_t *nav)
+{
+	trace(4,"decode_slastype51: unsupported.\n");
+	return 1;
 }
 /* update sbas corrections -----------------------------------------------------
 * update sbas correction parameters in navigation data with a sbas message
@@ -425,30 +710,59 @@ static int decode_sbstype26(const sbsmsg_t *msg, sbsion_t *sbsion)
 *-----------------------------------------------------------------------------*/
 extern int sbsupdatecorr(const sbsmsg_t *msg, nav_t *nav)
 {
-    int type=getbitu(msg->msg,8,6),stat=-1;
-    
+    int type,stat=-1;
+
+    type=sbstype((sbsmsg_t *)msg);
+
     trace(3,"sbsupdatecorr: type=%d\n",type);
-    
-    if (msg->week==0) return -1;
-    
-    switch (type) {
-        case  0: stat=decode_sbstype2 (msg,&nav->sbssat); break;
-        case  1: stat=decode_sbstype1 (msg,&nav->sbssat); break;
-        case  2:
-        case  3:
-        case  4:
-        case  5: stat=decode_sbstype2 (msg,&nav->sbssat); break;
-        case  6: stat=decode_sbstype6 (msg,&nav->sbssat); break;
-        case  7: stat=decode_sbstype7 (msg,&nav->sbssat); break;
-        case  9: stat=decode_sbstype9 (msg,nav);          break;
-        case 18: stat=decode_sbstype18(msg,nav ->sbsion); break;
-        case 24: stat=decode_sbstype24(msg,&nav->sbssat); break;
-        case 25: stat=decode_sbstype25(msg,&nav->sbssat); break;
-        case 26: stat=decode_sbstype26(msg,nav ->sbsion); break;
-        case 63: break; /* null message */
-        
-        /*default: trace(2,"unsupported sbas message: type=%d\n",type); break;*/
-    }
+
+	if (msg->week==0) return -1;
+
+	if (msg->band==0) { /* L1 */
+		switch (type) {
+			case  0: stat=decode_sbstype2 (msg,&nav->sbssat); break;
+			case  1: stat=decode_sbstype1 (msg,&nav->sbssat); break;
+			case  2:
+			case  3:
+			case  4:
+			case  5: stat=decode_sbstype2 (msg,&nav->sbssat); break;
+			case  6: stat=decode_sbstype6 (msg,&nav->sbssat); break;
+			case  7: stat=decode_sbstype7 (msg,&nav->sbssat); break;
+			case  9: stat=decode_sbstype9 (msg,nav);          break;
+			case 18: stat=decode_sbstype18(msg,nav ->sbsion); break;
+			case 24: stat=decode_sbstype24(msg,&nav->sbssat); break;
+			case 25: stat=decode_sbstype25(msg,&nav->sbssat); break;
+			case 26: stat=decode_sbstype26(msg,nav ->sbsion); break;
+			/* L1S */
+			case 43: stat=decode_dcrtype43(msg,nav);          break;
+			case 44: stat=decode_dcrtype44(msg,nav);          break;
+			case 47: stat=decode_slastype47(msg,nav);         break;
+			case 48: stat=decode_slastype48(msg,nav);         break;
+			case 49: stat=decode_slastype49(msg,nav);         break;
+			case 50: stat=decode_slastype50(msg,nav);         break;
+			case 51: stat=decode_slastype51(msg,nav);         break;
+
+			case 63: break; /* null message */
+			/*default: trace(2,"unsupported sbas message: type=%d\n",type); break;*/
+		}
+	} else { /* L5 */
+		switch (type) {
+			case 31: stat=decode_sbstype31(msg,nav);          break; /* mask */
+			case 32: stat=decode_sbstype32(msg,nav);          break; /* orb */
+			case 34: stat=decode_sbstype34(msg,nav);          break; /* integrity */
+			case 35: stat=decode_sbstype35(msg,nav);          break; /* integrity */
+			case 36: stat=decode_sbstype36(msg,nav);          break; /* integrity */
+			case 37: stat=decode_sbstype37(msg,nav);          break; /* OBAD */
+			case 39: stat=decode_sbstype39(msg,nav);          break; /* ephemeris 1 */
+			case 40: stat=decode_sbstype40(msg,nav);          break; /* ephemeris 2 */
+			case 42: stat=decode_sbstype42(msg,nav);          break; /* GNSS time offset */
+			case 47: stat=decode_sbstype47(msg,nav);          break; /* SBAS almanac */
+
+			case 62: break; /* internal test message */
+			case 63: break; /* null message */
+			/*default: trace(2,"unsupported sbas message: type=%d\n",type); break;*/
+		}
+	}
     return stat?type:-1;
 }
 /* read sbas log file --------------------------------------------------------*/
@@ -559,7 +873,7 @@ extern int sbsreadmsgt(const char *file, int sel, gtime_t ts, gtime_t te,
     }
     /* expand wild card in file path */
     n=expath(file,efiles,MAXEXFILE);
-    
+
     for (i=0;i<n;i++) {
         if (!(ext=strrchr(efiles[i],'.'))) continue;
         if (strcmp(ext,".sbs")&&strcmp(ext,".SBS")&&
@@ -592,7 +906,7 @@ extern int sbsreadmsg(const char *file, int sel, sbs_t *sbs)
 extern void sbsoutmsg(FILE *fp, rnxopt_t *opt, raw_t *raw)
 {
     sbsmsg_t *sbsmsg=&raw->sbsmsg;
-	int i,prn=sbsmsg->prn,type=sbsmsg->msg[1]>>2;
+	int i,prn=sbsmsg->prn,type=sbstype(sbsmsg);
     
     trace(4,"sbsoutmsg:\n");
     

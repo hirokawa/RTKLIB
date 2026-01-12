@@ -1466,7 +1466,7 @@ static int decode_ED(raw_t *raw)
 			raw->ssrmsg.sat=sat;
 			raw->ssrmsg.len=61;
             raw->ssrmsg.ch=4; /* E6B */
-			memcpy(raw->ssrmsg.msg,p,250);
+			memcpy(raw->ssrmsg.msg,p,61);
 			/* decode_gal_cnav(raw->subfrm[sat-1]+SF_OFST_GAL_CNAV,
 				&raw->nav) */
 			return 10;
@@ -1761,7 +1761,7 @@ static int decode_id(raw_t *raw)
 /* decode [WD] SBAS raw navigation data --------------------------------------*/
 static int decode_WD(raw_t *raw)
 {
-    int i,prn,tow,tow_p,week;
+	int i,prn,tow,tow_p,week,type;
     char *msg;
     uint8_t *p=raw->buff+5;
     
@@ -1776,13 +1776,16 @@ static int decode_WD(raw_t *raw)
     trace(3,"decode_WD: prn=%3d\n",U1(p));
      
     prn=U1(p); p+=1;
-    tow=U4(p); p+=4+2;
-    
+	tow=U4(p); p+=4;
+	type=U1(p);p+=2;
+
     if (raw->outtype) {
         msg=raw->msgtype+strlen(raw->msgtype);
         sprintf(msg," prn=%3d tow=%6d",prn,tow);
     }
-    if ((prn<MINPRNSBS||MAXPRNSBS<prn)&&(prn<MINPRNQZS||MAXPRNQZS<prn)) {
+	if ((prn<MINPRNSBS  ||MAXPRNSBS<prn)&&
+		(prn<MINPRNQZS  ||MAXPRNQZS<prn)&&
+		(prn<MINPRNQZS_S||MAXPRNQZS_S<prn)) {
         trace(2,"javad WD satellite error: prn=%d\n",prn);
         return 0;
     }
@@ -1791,7 +1794,8 @@ static int decode_WD(raw_t *raw)
     }
     raw->sbsmsg.prn=prn;
     raw->sbsmsg.tow=tow;
-    
+    raw->sbsmsg.band=type; /* 0:L1,1:L5 */
+
     if (raw->time.time==0) {
         raw->sbsmsg.week=0;
     }
